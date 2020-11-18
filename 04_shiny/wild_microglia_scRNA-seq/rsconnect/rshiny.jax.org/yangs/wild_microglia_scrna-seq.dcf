@@ -1,0 +1,13 @@
+name: wild_microglia_scrna-seq
+title: wild_microglia_scRNA-seq
+username: yangs
+account: yangs
+server: rshiny.jax.org
+hostUrl: https://rshiny.jax.org/__api__
+appId: 138
+bundleId: 623
+url: https://rshiny.jax.org/content/138/
+when: 1594241276.61626
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: data/DE_vsWSB_coef_cluster.txt

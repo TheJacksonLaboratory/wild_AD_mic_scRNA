@@ -1,0 +1,9 @@
+default:
+
+  myfile: ~/code/2019_04_scRNA_CD11b/emase_2/output/Integration_mg/mg_int.rds
+
+ 
+
+rsconnect:
+
+  myfile: /local/app-data/howell-lab/scRNA_CD11b/mg_int.rds

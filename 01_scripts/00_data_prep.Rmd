@@ -1,0 +1,125 @@
+---
+title: "Data Preparation for Seurat object"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(eval=FALSE, error=FALSE)
+```
+
+## Transfer loom file to Seurat object for each individual samples
+
+```{r, eval=TRUE, echo=FALSE}
+#tutorial
+#https://satijalab.org/seurat/v3.0/conversion_vignette.html
+#https://satijalab.org/loomR/loomR_tutorial.html
+
+library(loomR)
+library(Seurat)
+library(tidyverse)
+library(cowplot)
+```
+
+
+```{r}
+
+path_in <- "../02_data/loom_file/" ## outputfile from scbase command
+path_out <- "../02_data/loom2Seurat"
+
+#annotation file
+Ensembl2Symb <- read.table(file = "../02_data/Ensembl2Symbol.tsv", sep = '\t', header = FALSE)
+#loo2Seurat function
+loom2Seurat <- function(filename, path_in, path_out, symb= Ensembl2Symb$V2){
+  cd11b <- file.path(path_in, filename) %>% connect(mode = "r+") 
+  cd11b <- cd11b$add.row.attribute(list(symb = symb), overwrite = TRUE)
+  cd11b <- cd11b %>% as.Seurat(cells = "CellID", features = "symb")
+  saveRDS(cd11b, file.path(path_out, sub("loom", "rds", filename)))
+}
+
+# test the function
+loom2Seurat("GH19001_GT19-04383_SI-GA-A9_S6_L001.loom", path_in=path_in, path_out=path_out)
+
+filename <- list.files(path_in) %>% as.list()
+filename %>% walk(safely(loom2Seurat), path_in=path_in, path_out=path_out)
+
+
+```
+
+## Prepare metadata
+
+```{r, }
+
+# batch=c("A", "B", "C", "D")
+meta.all <- readRDS("../02_data/intermediate_rds/sc_design_file.rds")
+
+meta.all <- meta.all %>% 
+  dplyr::rename(Harv_Date="Harvest Date") %>% 
+  select(ID_prefix, Simple_ID, Cust_ID, Exp_batch, Strain, Genotype, Harv_Date)
+
+all_file <- list.files("../output/loom2Seurat/")
+all_file_prefix <-  sub(".rds", "", all_file)
+
+meta.all <- meta.all %>% 
+  filter(ID_prefix %in% all_file_prefix) %>% 
+  mutate(Group = paste(Strain, Genotype, sep = "_"))
+
+meta.all %>% 
+  group_by(Strain, Genotype) %>% summarise(N=n())
+
+
+```
+
+
+## Merge individual Seurat objects into single Seurat object
+```{r}
+
+sample.list <- paste(meta.all$ID_prefix, ".rds", sep="")
+sample_path.list <- file.path("../02_data/loom2Seurat", sample.list)
+
+# Load the cd11b dataset
+cd11b.list <- sample_path.list %>% map(readRDS)
+
+# check gene and cell numbers
+cd11b.list %>% map(dim)
+
+sample_ID <- meta.all$Simple_ID %>% unlist()
+
+for (i in seq_along(sample_ID)){
+  cd11b.list[[i]]$Strain <- meta.all$Strain[i]
+  cd11b.list[[i]]$Genotype <- meta.all$Genotype[i]
+  cd11b.list[[i]]$rep <- meta.all$Cust_ID[i]
+  cd11b.list[[i]]$batch <- meta.all$Exp_batch[i]
+  cd11b.list[[i]]$harv_date <- meta.all$Harv_Date[i]
+  cd11b.list[[i]]$percent.mt <- PercentageFeatureSet(cd11b.list[[i]], pattern = "^mt-")
+  cd11b.list[[i]]$Group <- paste(cd11b.list[[i]]$Strain, cd11b.list[[i]]$Genotype, sep="_")
+}
+
+head(cd11b.list[[4]]@meta.data, 5)
+
+cd11b.merged <- merge(x=cd11b.list[[1]], y=cd11b.list[-1], add.cell.ids=sample_ID, merge.data = TRUE)
+
+saveRDS(cd11b.merged, "../02_data/intermediate_rds/emase29files_merged_raw.rds")
+```
+
+
+## Plot merged samples (unintegreated samples)
+
+```{r, eval=TRUE, fig.width= 8, fig.height=4}
+cd11b.merged <- readRDS("../02_data/intermediate_rds/emase29files_merged_raw.rds")
+
+cd11b.merged <- cd11b.merged %>% 
+  # haven't subset yet (get rid of low count cells or high mt-content cells)
+  NormalizeData() %>% 
+  FindVariableFeatures(selection.method = "vst", nfeatures = 3000) %>% 
+  ScaleData(vars.to.regress = c("batch", "percent.mt")) %>% 
+  RunPCA(npcs = 30) %>% 
+  RunUMAP(reduction = "pca", dims = 1:30) %>% 
+  FindNeighbors(reduction = "pca", dims = 1:30) %>% 
+  FindClusters(resolution = 0.5)
+
+p1 <- DimPlot(cd11b.merged, reduction = "umap", group.by = "Strain", pt.size = 0.0001) + coord_fixed()
+p2 <- DimPlot(cd11b.merged, reduction = "umap", label = FALSE, pt.size = 0.001) + coord_fixed()
+plot_grid(p1, p2)
+```
+
+

@@ -1,0 +1,8 @@
+cd /projects/howell-lab/yangs/projects/2019_04_scRNA_CD11b/GH19001_GH19008
+
+
+# generate prefix file
+for x in `ls /projects/howell-lab/00_fastq/yangs/2019_04_scRNA_CD11b/*_I1_* `; do basename $x _I1_001.fastq.gz; done >>scripts/prefix.txt
+
+cat scripts/prefix.txt
+

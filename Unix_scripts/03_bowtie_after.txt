@@ -1,0 +1,13 @@
+# because alntools take folder of bam files of each sample, need to move bam files of each sample into individual folders
+# this could be written into 
+
+
+cd /projects/howell-lab/yangs/projects/2019_04_scRNA_CD11b/GH19001_GH19008/scripts
+
+DIR_IN=/projects/howell-lab/yangs/projects/2019_04_scRNA_CD11b/GH19001_GH19008/03_bowtie
+
+for F in $(cat prefix.txt)
+	do 
+	mkdir ${DIR_IN}/${F} 
+	mv ${DIR_IN}/${F}*.bam ${DIR_IN}/${F}
+done

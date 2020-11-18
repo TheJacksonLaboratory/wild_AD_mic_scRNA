@@ -1,0 +1,846 @@
+---
+title: "Initial analysis in 4 seperate strains"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
+```
+
+## Analyzing strains seperartely 
+
+#### B6, CAST, PWK, WSB strains
+#### Filtering low quality cells and non-myeloid cells for first round of integration
+
+### Packages and functions
+
+```{r}
+library(tidyverse)
+library(cowplot)
+library(Seurat)
+library(enrichCellMarkers)
+source("../05_function/norm_scale_dim_cluster_qc.R")
+```
+
+## B6 strain
+```{r}
+######### load merged but unintegrated data
+######### filter only cluster identified in integrated data and copy the original cluster info to filtered merged data 
+cd11b.merged <- readRDS("~/code/wild_AD_mic_scRNA/02_data/intermediate_rds/emase29files_merged_raw.rds")
+
+# VlnPlot(cd11b.merged, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+
+p_QC <- c("nFeature_RNA", "percent.mt", "percent.ribo") %>% map(~QC_plot(cd11b.integrated@meta.data, .))
+p <- plot_grid(plotlist=p_QC, ncol=1, align="hv")
+title <- ggdraw() + draw_label(plot_title, fontface='bold')
+plot_grid(title, p, ncol=1, rel_heights=c(0.1, 1))
+ggsave(paste(path, plot_title, "_", "pca_", i, "_res_", j, "_QC",  ".png", sep=""), units = "in", width = 10, height = 5,  dpi=150)
+
+
+
+cd11b.merged <- subset(cd11b.merged, subset = nFeature_RNA > 600 & percent.mt < 8)
+
+########## ribosomal gene
+
+ribo.genes <- grep(pattern = "^Rp[sl][[:digit:]]", x = rownames(cd11b.merged@assays$RNA), value = TRUE)
+
+# ribo.2 <- grep(pattern = "^Rn[[:digit:]]", x = rownames(cd11b.merged@assays$RNA), value = TRUE)
+
+cd11b.merged$percent.ribo <- PercentageFeatureSet(cd11b.merged, features = ribo.genes)
+
+
+#########
+## B6J
+# round 1: all myeloid cells
+######### 
+
+strain="B6J"
+round="r1"
+path=paste("../03_results/01a_QC_strains/", strain, "/", sep = "")
+
+cd11b.strain <- subset(cd11b.merged, subset = Strain=="B6J")
+
+cd11b.strain <- AddModuleScore( object = cd11b.strain, features = ribo.genes, ctrl = 100, name = 'ribo_Features')
+
+cd11b.strain <- cd11b.strain %>% 
+  NormalizeData() %>% 
+  FindVariableFeatures(selection.method = "vst", nfeatures = 3000) %>% 
+  ScaleData(vars.to.regress = c("batch", "ribo.genes", "percent.mt", "nFeature_RNA")) %>% 
+  RunPCA()
+
+cd11b.strain <- JackStraw(cd11b.strain, num.replicate = 30, dim=30)
+cd11b.strain <- ScoreJackStraw(cd11b.strain, dims = 1:30)
+ElbowPlot(cd11b.strain, ndims = 30) + ggtitle(label = paste(strain, round, sep=" "))
+ggsave(paste(path, strain, "_", round, "_", "ElbowPlot",  ".png", sep=""), units = "in", width = 7, height = 4,  dpi=150)
+
+print(cd11b.strain[["pca"]], dims = 1:30, nfeatures = 30)
+
+# choose dimensions of PCA after checking ElbowPlot and positive genes in each clusters. 
+pca_dim <- 25
+
+cd11b.strain <- cd11b.strain %>% 
+  RunUMAP(reduction = "pca", dims = 1:pca_dim) %>% 
+  FindNeighbors(reduction = "pca", dims = 1:pca_dim) %>% 
+  FindClusters(resolution = 0.5)
+
+res="res05" # specify which resolution used to cluster cells
+
+# check dimension reduction
+DimPlot(cd11b.strain, reduction = "umap", label = TRUE, pt.size = 0.001) + 
+  ggtitle(label = strain) + coord_fixed()
+ggsave(paste(path, strain, "_", round, "_", res, "_", "DimPlot1",  ".png", sep=""), units = "in", width = 7.3, height = 7,  dpi=150)
+
+DimPlot(cd11b.strain, reduction = "umap", label = FALSE, group.by="batch", pt.size = 0.001) + 
+  ggtitle(label = strain) + coord_fixed()
+ggsave(paste(path, strain, "_", round, "_", res, "_", "DimPlot2",  ".png", sep=""), units = "in", width = 7.3, height = 7,  dpi=150)
+
+DimPlot(cd11b.strain, reduction = "umap", label = TRUE, pt.size = 0.001, split.by = "Genotype")+ ggtitle(label = strain)+ coord_fixed()
+ggsave(paste(path, strain, "_", round, "_", res, "_", "DimPlot3",  ".png", sep=""), units = "in", width = 8.6, height = 4.7,  dpi=150)
+
+DimPlot(cd11b.strain, reduction = "pca", label = TRUE, pt.size = 0.001) + 
+  ggtitle(label = strain)
+ggsave(paste(path, strain, "_", round, "_", res, "_", "DimPlot4",  ".png", sep=""), units = "in", width = 10, height = 5,  dpi=150)
+
+# QC: violin plot of nfeatures_RNA, percent.mt, percent.ribo for each cluster
+# funcion: QC_plot(data, y) from source
+p_QC <- c("nFeature_RNA", "percent.mt", "percent.ribo") %>% map(~QC_plot(cd11b.strain@meta.data, .))
+p <- plot_grid(plotlist=p_QC, ncol=1, align="hv")
+title <- ggdraw() + draw_label(paste(strain, round, res, "QC", sep=" "), fontface='bold')
+plot_grid(title, p, ncol=1, rel_heights=c(0.1, 1))
+ggsave(paste(path, strain, "_", round, "_", res, "_", "QC",  ".png", sep=""), units = "in", width = 10, height = 5,  dpi=150)
+
+
+# Find cluster markers
+cd11b.markers <- FindAllMarkers(cd11b.strain, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25, max.cells.per.ident=300) #max.cells.per.ident
+cd11b.markers <- cd11b.markers %>% rownames_to_column(var="symbol")
+
+# save cell metadata and marker info into rda
+meta <- cd11b.strain@meta.data %>% select(-starts_with("ribo_"))
+save(meta, cd11b.markers, file=paste(path, strain, "_", round, "_", res, "_", "Meta_Marker.rda", sep=""))
+
+
+########
+##these codes are not built into function can explore myself. [Do NOT build into function]
+# check cell proportions
+prop.table(table(Idents(cd11b.strain), cd11b.strain$Genotype), margin = 2)
+sum_table <- cd11b.strain@meta.data %>% group_by(seurat_clusters) %>% 
+  summarise(N=n(), 
+            med_nCount_RNA=median(nCount_RNA), 
+            med_nFeature_RNA=median(nFeature_RNA), 
+            med_percent.mt=median(percent.mt),
+            med_percent.ribo=median(percent.ribo))
+
+# check cell type for some cluster (check selected cluster, don't need to check all)
+markers_top <- cd11b.markers %>% group_by(cluster) %>% top_n(n = 20, wt = avg_logFC)
+gene_list <- markers_top %>% filter(cluster==18) %>% select(symbol) %>% unlist()
+results=CMenrich(gene.list= gene_list,species='mouse')
+DT::datatable(results$enrichments)
+results$genes[[1]]
+
+
+#########
+# round 2: all myeloid cells removing clusters with technical issue
+######### 
+
+round="r2"
+
+#after checking clusters, remove cluster: 12, 15, 16, 17, 18
+cd11b.strain <- subset(cd11b.strain, idents = c(12, 15, 16, 17, 18), invert=TRUE)
+
+cd11b.strain <- what_dims(cd11b.strain = cd11b.strain, path = path, strain = strain, round = round)
+
+# choose pca dimension
+pca_dim <- 25
+
+# tried resolustion = 0.5
+cd11b.strain <- cd11b.strain %>% 
+  RunUMAP(reduction = "pca", dims = 1:pca_dim) %>% 
+  FindNeighbors(reduction = "pca", dims = 1:pca_dim) %>% 
+  FindClusters(resolution = 0.5)
+
+res="res05" # specify which resolution used to cluster cells
+
+cd11b.markers <- markers(cd11b.strain = cd11b.strain, path = path, strain = strain, round = round, res=res)
+
+# try resolustion = 0.6
+cd11b.strain <- cd11b.strain %>% 
+  RunUMAP(reduction = "pca", dims = 1:pca_dim) %>% 
+  FindNeighbors(reduction = "pca", dims = 1:pca_dim) %>% 
+  FindClusters(resolution = 0.6)
+
+res="res06" # specify which resolution used to cluster cells
+
+cd11b.markers <- markers(cd11b.strain = cd11b.strain, path = path, strain = strain, round = round, res=res)
+
+# check cell proportions
+prop.table(table(Idents(cd11b.strain), cd11b.strain$Genotype), margin = 2)
+sum_table <- cd11b.strain@meta.data %>% group_by(seurat_clusters) %>% 
+  summarise(N=n(), 
+            med_nCount_RNA=median(nCount_RNA), 
+            med_nFeature_RNA=median(nFeature_RNA), 
+            med_percent.mt=median(percent.mt),
+            med_percent.ribo=median(percent.ribo))
+
+### resolusion 0.6 is better then resolution 0.5 as it seperate DAM cells in more detail but not further divide 
+# homeostatic microglia into more details (as it did in resolusion 0.7, not run here)  
+# filter out cluster 15 for all myeloid cell integration
+
+# save rds for later use (eg. integration or non-microglia reclustering)
+saveRDS(cd11b.strain, paste(path, strain, "_", round, "_", res, "_", ".rds", sep=""))
+
+#########
+# round 3: just microglia
+######### 
+
+round="r3_mg"
+
+# use cd11b.strain result from clustering resolusion = 0.6
+mg.strain <- subset(cd11b.strain, idents = c(0:6, 8:10))
+
+mg.strain <- what_dims(cd11b.strain = mg.strain, path = path, strain = strain, round = round)
+
+# choose pca dimension
+pca_dim <- 22
+
+# try resolustion = 0.6 
+mg.strain <- mg.strain %>% 
+  RunUMAP(reduction = "pca", dims = 1:pca_dim) %>% 
+  FindNeighbors(reduction = "pca", dims = 1:pca_dim) %>% 
+  FindClusters(resolution = 0.6)
+
+res="res06" # specify which resolution used to cluster cells
+
+mg.markers <- markers(cd11b.strain = mg.strain, path = path, strain = strain, round = round, res=res)
+
+# check cell proportions
+prop.table(table(Idents(mg.strain), mg.strain$Genotype), margin = 2)
+sum_table <- mg.strain@meta.data %>% group_by(seurat_clusters) %>% 
+  summarise(N=n(), 
+            med_nCount_RNA=median(nCount_RNA), 
+            med_nFeature_RNA=median(nFeature_RNA), 
+            med_percent.mt=median(percent.mt),
+            med_percent.ribo=median(percent.ribo))
+# check cell type for some clusters (check selected clusters, don't need to check all)
+markers_top <- mg.markers %>% group_by(cluster) %>% top_n(n = 20, wt = avg_logFC)
+gene_list <- markers_top %>% filter(cluster==11) %>% select(symbol) %>% unlist()
+results=CMenrich(gene.list= gene_list,species='mouse')
+DT::datatable(results$enrichments)
+results$genes[[1]]
+
+#note: higher mt- content in cluster 11.
+```
+
+
+## CAST strain
+```{r}
+######### filter only cluster identified in integrated data and copy the original cluster info to filtered merged data 
+cd11b.merged <- readRDS("~/code/wild_AD_mic_scRNA/02_data/intermediate_rds/emase29files_merged_raw.rds")
+cd11b.merged <- subset(cd11b.merged, subset = nFeature_RNA > 600 & percent.mt < 8)
+
+########## ribosomal gene
+
+ribo.genes <- grep(pattern = "^Rp[sl][[:digit:]]", x = rownames(cd11b.merged@assays$RNA), value = TRUE)
+
+# ribo.2 <- grep(pattern = "^Rn[[:digit:]]", x = rownames(cd11b.merged@assays$RNA), value = TRUE)
+
+cd11b.merged$percent.ribo <- PercentageFeatureSet(cd11b.merged, features = ribo.genes)
+
+
+#########
+## CAST
+# round 1: all myeloid cells
+######### 
+
+strain="CAST"
+round="r1"
+path=paste("../03_results/01a_QC_strains/", strain, "/", sep = "")
+
+cd11b.strain <- subset(cd11b.merged, subset = Strain=="CAST")
+
+cd11b.strain <- AddModuleScore( object = cd11b.strain, features = ribo.genes, ctrl = 100, name = 'ribo_Features')
+
+cd11b.strain <- cd11b.strain %>% 
+  NormalizeData() %>% 
+  FindVariableFeatures(selection.method = "vst", nfeatures = 3000) %>% 
+  ScaleData(vars.to.regress = c("batch", "ribo.genes", "percent.mt", "nFeature_RNA")) %>% 
+  RunPCA()
+
+cd11b.strain <- JackStraw(cd11b.strain, num.replicate = 30, dim=30)
+cd11b.strain <- ScoreJackStraw(cd11b.strain, dims = 1:30)
+ElbowPlot(cd11b.strain, ndims = 30) + ggtitle(label = paste(strain, round, sep=" "))
+ggsave(paste(path, strain, "_", round, "_", "ElbowPlot",  ".png", sep=""), units = "in", width = 7, height = 4,  dpi=150)
+
+print(cd11b.strain[["pca"]], dims = 1:30, nfeatures = 10)
+
+# choose dimensions of PCA after checking ElbowPlot and positive genes in each clusters. 
+pca_dim <- 25
+
+cd11b.strain <- cd11b.strain %>% 
+  RunUMAP(reduction = "pca", dims = 1:pca_dim) %>% 
+  FindNeighbors(reduction = "pca", dims = 1:pca_dim) %>% 
+  FindClusters(resolution = 0.5)
+
+res="res05" # specify which resolution used to cluster cells
+
+# check dimension reduction
+DimPlot(cd11b.strain, reduction = "umap", label = TRUE, pt.size = 0.001) + 
+  ggtitle(label = strain) + coord_fixed()
+ggsave(paste(path, strain, "_", round, "_", res, "_", "DimPlot1",  ".png", sep=""), units = "in", width = 7.3, height = 7,  dpi=150)
+
+DimPlot(cd11b.strain, reduction = "umap", label = FALSE, group.by="batch", pt.size = 0.001) + 
+  ggtitle(label = strain) + coord_fixed()
+ggsave(paste(path, strain, "_", round, "_", res, "_", "DimPlot2",  ".png", sep=""), units = "in", width = 7.3, height = 7,  dpi=150)
+
+DimPlot(cd11b.strain, reduction = "umap", label = TRUE, pt.size = 0.001, split.by = "Genotype")+ ggtitle(label = strain)+ coord_fixed()
+ggsave(paste(path, strain, "_", round, "_", res, "_", "DimPlot3",  ".png", sep=""), units = "in", width = 8.6, height = 4.7,  dpi=150)
+
+DimPlot(cd11b.strain, reduction = "pca", label = TRUE, pt.size = 0.001) + 
+  ggtitle(label = strain)
+ggsave(paste(path, strain, "_", round, "_", res, "_", "DimPlot4",  ".png", sep=""), units = "in", width = 10, height = 5,  dpi=150)
+
+# QC: violin plot of nfeatures_RNA, percent.mt, percent.ribo for each cluster
+# funcion: QC_plot(data, y) from source
+p_QC <- c("nFeature_RNA", "percent.mt", "percent.ribo") %>% map(~QC_plot(cd11b.strain@meta.data, .))
+p <- plot_grid(plotlist=p_QC, ncol=1, align="hv")
+title <- ggdraw() + draw_label(paste(strain, round, res, "QC", sep=" "), fontface='bold')
+plot_grid(title, p, ncol=1, rel_heights=c(0.1, 1))
+ggsave(paste(path, strain, "_", round, "_", res, "_", "QC",  ".png", sep=""), units = "in", width = 10, height = 5,  dpi=150)
+
+
+# Find cluster markers
+cd11b.markers <- FindAllMarkers(cd11b.strain, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25, max.cells.per.ident=300) #max.cells.per.ident
+cd11b.markers <- cd11b.markers %>% rownames_to_column(var="symbol")
+
+# save cell metadata and marker info into rda
+meta <- cd11b.strain@meta.data %>% select(-starts_with("ribo_"))
+save(meta, cd11b.markers, file=paste(path, strain, "_", round, "_", res, "_", "Meta_Marker.rda", sep=""))
+
+
+########
+##these codes are not built into function can explore myself. [Do NOT build into function]
+# check cell proportions
+prop.table(table(Idents(cd11b.strain), cd11b.strain$Genotype), margin = 2)
+sum_table <- cd11b.strain@meta.data %>% group_by(seurat_clusters) %>% 
+  summarise(N=n(), 
+            med_nCount_RNA=median(nCount_RNA), 
+            med_nFeature_RNA=median(nFeature_RNA), 
+            med_percent.mt=median(percent.mt),
+            med_percent.ribo=median(percent.ribo))
+
+# check cell type for some cluster (check selected cluster, don't need to check all)
+markers_top <- cd11b.markers %>% group_by(cluster) %>% top_n(n = 20, wt = avg_logFC)
+gene_list <- markers_top %>% filter(cluster==5) %>% select(symbol) %>% unlist()
+results=CMenrich(gene.list= gene_list,species='mouse')
+DT::datatable(results$enrichments)
+results$genes[[1]]
+
+
+#########
+# round 2: all myeloid cells removing clusters with technical issue
+######### 
+
+round="r2"
+
+
+#after checking clusters, 
+# remove cluster: 13 (the top 20 gene of cluster 13 are almost all mt genes)
+# check CAST_r1_res05_QC.png mt%
+cd11b.strain <- subset(cd11b.strain, idents = 13 , invert=TRUE)
+
+cd11b.strain <- what_dims(cd11b.strain = cd11b.strain, path = path, strain = strain, round = round)
+
+# choose pca dimension
+pca_dim <- 25
+
+# tried resolustion = 0.5
+cd11b.strain <- cd11b.strain %>% 
+  RunUMAP(reduction = "pca", dims = 1:pca_dim) %>% 
+  FindNeighbors(reduction = "pca", dims = 1:pca_dim) %>% 
+  FindClusters(resolution = 0.5)
+
+res="res05" # specify which resolution used to cluster cells
+
+#source("../../functions/norm_scale_dim_cluster_qc.R") # when R console idled for a long time, function <markers> lost, reload source function file.
+
+cd11b.markers <- markers(cd11b.strain = cd11b.strain, path = path, strain = strain, round = round, res=res)
+
+
+# check cell proportions
+prop.table(table(Idents(cd11b.strain), cd11b.strain$Genotype), margin = 2)
+sum_table <- cd11b.strain@meta.data %>% group_by(seurat_clusters) %>% 
+  summarise(N=n(), 
+            med_nCount_RNA=median(nCount_RNA), 
+            med_nFeature_RNA=median(nFeature_RNA), 
+            med_percent.mt=median(percent.mt),
+            med_percent.ribo=median(percent.ribo))
+
+
+# check cell type for some cluster (check selected cluster, don't need to check all)
+markers_top <- cd11b.markers %>% group_by(cluster) %>% top_n(n = 20, wt = avg_logFC)
+gene_list <- markers_top %>% filter(cluster==11) %>% select(symbol) %>% unlist()
+results=CMenrich(gene.list= gene_list,species='mouse')
+DT::datatable(results$enrichments)
+results$genes[[1]]
+
+
+# already many clusters, don't bother trying higher resolusion
+
+# save rds for later use (eg. integration or non-microglia reclustering)
+saveRDS(cd11b.strain, paste(path, strain, "_", round, "_", res, "_", "Seurat", ".rds", sep=""))
+
+#########
+# round 3: just microglia
+######### 
+
+round="r3_mg"
+
+# use cd11b.strain result from clustering resolusion = 0.6
+mg.strain <- subset(cd11b.strain, idents = 0:10)
+
+mg.strain <- what_dims(cd11b.strain = mg.strain, path = path, strain = strain, round = round)
+
+# choose pca dimension
+pca_dim <- 22
+
+# try resolustion = 0.6 
+mg.strain <- mg.strain %>% 
+  RunUMAP(reduction = "pca", dims = 1:pca_dim) %>% 
+  FindNeighbors(reduction = "pca", dims = 1:pca_dim) %>% 
+  FindClusters(resolution = 0.5)
+
+res="res05" # specify which resolution used to cluster cells
+
+mg.markers <- markers(cd11b.strain = mg.strain, path = path, strain = strain, round = round, res=res)
+
+# check cell proportions
+prop.table(table(Idents(mg.strain), mg.strain$Genotype), margin = 2)
+sum_table <- mg.strain@meta.data %>% group_by(seurat_clusters) %>% 
+  summarise(N=n(), 
+            med_nCount_RNA=median(nCount_RNA), 
+            med_nFeature_RNA=median(nFeature_RNA), 
+            med_percent.mt=median(percent.mt),
+            med_percent.ribo=median(percent.ribo))
+# check cell type for some clusters (check selected clusters, don't need to check all)
+markers_top <- mg.markers %>% group_by(cluster) %>% top_n(n = 20, wt = avg_logFC)
+gene_list <- markers_top %>% filter(cluster==11) %>% select(symbol) %>% unlist()
+results=CMenrich(gene.list= gene_list,species='mouse')
+DT::datatable(results$enrichments)
+results$genes[[1]]
+```
+
+
+## PWK strain
+```{r}
+######### load merged but unintegrated data
+######### filter only cluster identified in integrated data and copy the original cluster info to filtered merged data 
+cd11b.merged <- readRDS("~/code/wild_AD_mic_scRNA/02_data/intermediate_rds/emase29files_merged_raw.rds")
+cd11b.merged <- subset(cd11b.merged, subset = nFeature_RNA > 600 & percent.mt < 8)
+
+########## ribosomal gene
+
+ribo.genes <- grep(pattern = "^Rp[sl][[:digit:]]", x = rownames(cd11b.merged@assays$RNA), value = TRUE)
+
+# ribo.2 <- grep(pattern = "^Rn[[:digit:]]", x = rownames(cd11b.merged@assays$RNA), value = TRUE)
+
+cd11b.merged$percent.ribo <- PercentageFeatureSet(cd11b.merged, features = ribo.genes)
+
+
+#########
+## PWK
+# round 1: all myeloid cells
+######### 
+
+strain="PWK"
+round="r1"
+path=paste("../03_results/01a_QC_strains/", strain, "/", sep = "")
+
+cd11b.strain <- subset(cd11b.merged, subset = Strain=="PWK")
+
+cd11b.strain <- AddModuleScore( object = cd11b.strain, features = ribo.genes, ctrl = 100, name = 'ribo_Features')
+
+cd11b.strain <- cd11b.strain %>% 
+  NormalizeData() %>% 
+  FindVariableFeatures(selection.method = "vst", nfeatures = 3000) %>% 
+  ScaleData(vars.to.regress = c("batch", "ribo.genes", "percent.mt", "nFeature_RNA")) %>% 
+  RunPCA()
+
+cd11b.strain <- JackStraw(cd11b.strain, num.replicate = 30, dim=30)
+cd11b.strain <- ScoreJackStraw(cd11b.strain, dims = 1:30)
+ElbowPlot(cd11b.strain, ndims = 30) + ggtitle(label = paste(strain, round, sep=" "))
+ggsave(paste(path, strain, "_", round, "_", "ElbowPlot",  ".png", sep=""), units = "in", width = 7, height = 4,  dpi=150)
+
+print(cd11b.strain[["pca"]], dims = 1:30, nfeatures = 30)
+
+# choose dimensions of PCA after checking ElbowPlot and positive genes in each clusters. 
+pca_dim <- 25
+
+cd11b.strain <- cd11b.strain %>% 
+  RunUMAP(reduction = "pca", dims = 1:pca_dim) %>% 
+  FindNeighbors(reduction = "pca", dims = 1:pca_dim) %>% 
+  FindClusters(resolution = 0.5)
+
+res="res05" # specify which resolution used to cluster cells
+
+# check dimension reduction
+DimPlot(cd11b.strain, reduction = "umap", label = TRUE, pt.size = 0.001) + 
+  ggtitle(label = strain) + coord_fixed()
+ggsave(paste(path, strain, "_", round, "_", res, "_", "DimPlot1",  ".png", sep=""), units = "in", width = 7.3, height = 7,  dpi=150)
+
+DimPlot(cd11b.strain, reduction = "umap", label = FALSE, group.by="batch", pt.size = 0.001) + 
+  ggtitle(label = strain) + coord_fixed()
+ggsave(paste(path, strain, "_", round, "_", res, "_", "DimPlot2",  ".png", sep=""), units = "in", width = 7.3, height = 7,  dpi=150)
+
+DimPlot(cd11b.strain, reduction = "umap", label = TRUE, pt.size = 0.001, split.by = "Genotype")+ ggtitle(label = strain)+ coord_fixed()
+ggsave(paste(path, strain, "_", round, "_", res, "_", "DimPlot3",  ".png", sep=""), units = "in", width = 8.6, height = 4.7,  dpi=150)
+
+DimPlot(cd11b.strain, reduction = "pca", label = TRUE, pt.size = 0.001) + 
+  ggtitle(label = strain)
+ggsave(paste(path, strain, "_", round, "_", res, "_", "DimPlot4",  ".png", sep=""), units = "in", width = 10, height = 5,  dpi=150)
+
+# QC: violin plot of nfeatures_RNA, percent.mt, percent.ribo for each cluster
+# funcion: QC_plot(data, y) from source
+p_QC <- c("nFeature_RNA", "percent.mt", "percent.ribo") %>% map(~QC_plot(cd11b.strain@meta.data, .))
+p <- plot_grid(plotlist=p_QC, ncol=1, align="hv")
+title <- ggdraw() + draw_label(paste(strain, round, res, "QC", sep=" "), fontface='bold')
+plot_grid(title, p, ncol=1, rel_heights=c(0.1, 1))
+ggsave(paste(path, strain, "_", round, "_", res, "_", "QC",  ".png", sep=""), units = "in", width = 10, height = 5,  dpi=150)
+
+
+# Find cluster markers
+cd11b.markers <- FindAllMarkers(cd11b.strain, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25, max.cells.per.ident=300) #max.cells.per.ident
+cd11b.markers <- cd11b.markers %>% rownames_to_column(var="symbol")
+
+# save cell metadata and marker info into rda
+meta <- cd11b.strain@meta.data %>% select(-starts_with("ribo_"))
+save(meta, cd11b.markers, file=paste(path, strain, "_", round, "_", res, "_", "Meta_Marker.rda", sep=""))
+
+
+########
+##these codes are not built into function can explore myself. [Do NOT build into function]
+# check cell proportions
+prop.table(table(Idents(cd11b.strain), cd11b.strain$Genotype), margin = 2)
+sum_table <- cd11b.strain@meta.data %>% group_by(seurat_clusters) %>% 
+  summarise(N=n(), 
+            med_nCount_RNA=median(nCount_RNA), 
+            med_nFeature_RNA=median(nFeature_RNA), 
+            med_percent.mt=median(percent.mt),
+            med_percent.ribo=median(percent.ribo))
+
+# check cell type for some cluster (check selected cluster, don't need to check all)
+markers_top <- cd11b.markers %>% group_by(cluster) %>% top_n(n = 20, wt = avg_logFC)
+gene_list <- markers_top %>% filter(cluster==15) %>% select(symbol) %>% unlist()
+results=CMenrich(gene.list= gene_list,species='mouse')
+DT::datatable(results$enrichments)
+results$genes[[1]]
+
+
+#########
+# round 2: all myeloid cells removing clusters with technical issue
+######### 
+
+round="r2"
+
+#after checking clusters, remove cluster: 9 (Slc1a2+ cells), 11 (Fibroblast-like), 12 (B cell like), 14 (Oligodendrocyte like), 15(red blood cell)
+cd11b.strain <- subset(cd11b.strain, idents = c(9, 11, 12, 14, 15), invert=TRUE)
+
+cd11b.strain <- what_dims(cd11b.strain = cd11b.strain, path = path, strain = strain, round = round)
+
+# choose pca dimension
+pca_dim <- 25
+
+# tried resolustion = 0.5
+cd11b.strain <- cd11b.strain %>% 
+  RunUMAP(reduction = "pca", dims = 1:pca_dim) %>% 
+  FindNeighbors(reduction = "pca", dims = 1:pca_dim) %>% 
+  FindClusters(resolution = 0.5)
+
+res="res05" # specify which resolution used to cluster cells
+
+source("../../functions/norm_scale_dim_cluster_qc.R")
+cd11b.markers <- markers(cd11b.strain = cd11b.strain, path = path, strain = strain, round = round, res=res)
+
+# note: cluster 11 has high mitochondrial content
+
+# try resolustion = 0.6
+cd11b.strain <- cd11b.strain %>% 
+  RunUMAP(reduction = "pca", dims = 1:pca_dim) %>% 
+  FindNeighbors(reduction = "pca", dims = 1:pca_dim) %>% 
+  FindClusters(resolution = 0.6)
+
+res="res06" # specify which resolution used to cluster cells
+
+cd11b.markers <- markers(cd11b.strain = cd11b.strain, path = path, strain = strain, round = round, res=res)
+
+# check cell proportions
+prop.table(table(Idents(cd11b.strain), cd11b.strain$Genotype), margin = 2)
+sum_table <- cd11b.strain@meta.data %>% group_by(seurat_clusters) %>% 
+  summarise(N=n(), 
+            med_nCount_RNA=median(nCount_RNA), 
+            med_nFeature_RNA=median(nFeature_RNA), 
+            med_percent.mt=median(percent.mt),
+            med_percent.ribo=median(percent.ribo))
+
+
+# check cell type for some cluster (check selected cluster, don't need to check all)
+markers_top <- cd11b.markers %>% group_by(cluster) %>% top_n(n = 20, wt = avg_logFC)
+gene_list <- markers_top %>% filter(cluster==9) %>% select(symbol) %>% unlist()
+results=CMenrich(gene.list= gene_list,species='mouse')
+DT::datatable(results$enrichments)
+results$genes[[1]]
+
+
+### resolusion 0.6 is almost the same as resolution 0.5, no cluster change
+# cluster 11 has high mitochondrial content, can consider removing before integration
+# use res=0.6 to save the object
+
+# save rds for later use (eg. integration or non-microglia reclustering)
+saveRDS(cd11b.strain, paste(path, strain, "_", round, "_", res, "_", "Seurat", ".rds", sep=""))
+
+#########
+# round 3: just microglia
+######### 
+
+round="r3_mg"
+
+# use cd11b.strain result from clustering resolusion = 0.6
+mg.strain <- subset(cd11b.strain, idents = c(0:7, 9:11))
+
+mg.strain <- what_dims(cd11b.strain = mg.strain, path = path, strain = strain, round = round)
+
+# choose pca dimension
+pca_dim <- 22
+
+# try resolustion = 0.6 
+mg.strain <- mg.strain %>% 
+  RunUMAP(reduction = "pca", dims = 1:pca_dim) %>% 
+  FindNeighbors(reduction = "pca", dims = 1:pca_dim) %>% 
+  FindClusters(resolution = 0.6)
+
+res="res06" # specify which resolution used to cluster cells
+
+mg.markers <- markers(cd11b.strain = mg.strain, path = path, strain = strain, round = round, res=res)
+
+# check cell proportions
+prop.table(table(Idents(mg.strain), mg.strain$Genotype), margin = 2)
+sum_table <- mg.strain@meta.data %>% group_by(seurat_clusters) %>% 
+  summarise(N=n(), 
+            med_nCount_RNA=median(nCount_RNA), 
+            med_nFeature_RNA=median(nFeature_RNA), 
+            med_percent.mt=median(percent.mt),
+            med_percent.ribo=median(percent.ribo))
+# check cell type for some clusters (check selected clusters, don't need to check all)
+markers_top <- mg.markers %>% group_by(cluster) %>% top_n(n = 20, wt = avg_logFC)
+gene_list <- markers_top %>% filter(cluster==8) %>% select(symbol) %>% unlist()
+results=CMenrich(gene.list= gene_list,species='mouse')
+DT::datatable(results$enrichments)
+results$genes[[1]]
+
+```
+
+
+## WSB strain
+```{r}
+######### load merged but unintegrated data
+######### filter only cluster identified in integrated data and copy the original cluster info to filtered merged data 
+cd11b.merged <- readRDS("~/code/wild_AD_mic_scRNA/02_data/intermediate_rds/emase29files_merged_raw.rds")
+cd11b.merged <- subset(cd11b.merged, subset = nFeature_RNA > 600 & percent.mt < 8)
+
+########## ribosomal gene
+
+ribo.genes <- grep(pattern = "^Rp[sl][[:digit:]]", x = rownames(cd11b.merged@assays$RNA), value = TRUE)
+
+# ribo.2 <- grep(pattern = "^Rn[[:digit:]]", x = rownames(cd11b.merged@assays$RNA), value = TRUE)
+
+cd11b.merged$percent.ribo <- PercentageFeatureSet(cd11b.merged, features = ribo.genes)
+
+
+#########
+## WSB
+# round 1: all myeloid cells
+######### 
+
+strain="WSB"
+round="r1"
+path=paste("../03_results/01a_QC_strains/", strain, "/", sep = "")
+
+cd11b.strain <- subset(cd11b.merged, subset = Strain=="WSB")
+
+cd11b.strain <- AddModuleScore( object = cd11b.strain, features = ribo.genes, ctrl = 100, name = 'ribo_Features')
+
+cd11b.strain <- cd11b.strain %>% 
+  NormalizeData() %>% 
+  FindVariableFeatures(selection.method = "vst", nfeatures = 3000) %>% 
+  ScaleData(vars.to.regress = c("batch", "ribo.genes", "percent.mt", "nFeature_RNA")) %>% 
+  RunPCA()
+
+cd11b.strain <- JackStraw(cd11b.strain, num.replicate = 30, dim=30)
+cd11b.strain <- ScoreJackStraw(cd11b.strain, dims = 1:30)
+ElbowPlot(cd11b.strain, ndims = 30) + ggtitle(label = paste(strain, round, sep=" "))
+ggsave(paste(path, strain, "_", round, "_", "ElbowPlot",  ".png", sep=""), units = "in", width = 7, height = 4,  dpi=150)
+
+print(cd11b.strain[["pca"]], dims = 1:30, nfeatures = 30)
+
+# choose dimensions of PCA after checking ElbowPlot and positive genes in each clusters. 
+pca_dim <- 25
+
+cd11b.strain <- cd11b.strain %>% 
+  RunUMAP(reduction = "pca", dims = 1:pca_dim) %>% 
+  FindNeighbors(reduction = "pca", dims = 1:pca_dim) %>% 
+  FindClusters(resolution = 0.5)
+
+res="res05" # specify which resolution used to cluster cells
+
+# check dimension reduction
+DimPlot(cd11b.strain, reduction = "umap", label = TRUE, pt.size = 0.001) + 
+  ggtitle(label = strain) + coord_fixed()
+ggsave(paste(path, strain, "_", round, "_", res, "_", "DimPlot1",  ".png", sep=""), units = "in", width = 7.3, height = 7,  dpi=150)
+
+DimPlot(cd11b.strain, reduction = "umap", label = FALSE, group.by="batch", pt.size = 0.001) + 
+  ggtitle(label = strain) + coord_fixed()
+ggsave(paste(path, strain, "_", round, "_", res, "_", "DimPlot2",  ".png", sep=""), units = "in", width = 7.3, height = 7,  dpi=150)
+
+DimPlot(cd11b.strain, reduction = "umap", label = TRUE, pt.size = 0.001, split.by = "Genotype")+ ggtitle(label = strain)+ coord_fixed()
+ggsave(paste(path, strain, "_", round, "_", res, "_", "DimPlot3",  ".png", sep=""), units = "in", width = 8.6, height = 4.7,  dpi=150)
+
+DimPlot(cd11b.strain, reduction = "pca", label = TRUE, pt.size = 0.001) + 
+  ggtitle(label = strain)
+ggsave(paste(path, strain, "_", round, "_", res, "_", "DimPlot4",  ".png", sep=""), units = "in", width = 10, height = 5,  dpi=150)
+
+# QC: violin plot of nfeatures_RNA, percent.mt, percent.ribo for each cluster
+# funcion: QC_plot(data, y) from source
+p_QC <- c("nFeature_RNA", "percent.mt", "percent.ribo") %>% map(~QC_plot(cd11b.strain@meta.data, .))
+p <- plot_grid(plotlist=p_QC, ncol=1, align="hv")
+title <- ggdraw() + draw_label(paste(strain, round, res, "QC", sep=" "), fontface='bold')
+plot_grid(title, p, ncol=1, rel_heights=c(0.1, 1))
+ggsave(paste(path, strain, "_", round, "_", res, "_", "QC",  ".png", sep=""), units = "in", width = 10, height = 5,  dpi=150)
+
+
+# Find cluster markers
+cd11b.markers <- FindAllMarkers(cd11b.strain, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25, max.cells.per.ident=300) #max.cells.per.ident
+cd11b.markers <- cd11b.markers %>% rownames_to_column(var="symbol")
+
+# save cell metadata and marker info into rda
+meta <- cd11b.strain@meta.data %>% select(-starts_with("ribo_"))
+save(meta, cd11b.markers, file=paste(path, strain, "_", round, "_", res, "_", "Meta_Marker.rda", sep=""))
+
+
+########
+##these codes are not built into function can explore myself. [Do NOT build into function]
+# check cell proportions
+prop.table(table(Idents(cd11b.strain), cd11b.strain$Genotype), margin = 2)
+sum_table <- cd11b.strain@meta.data %>% group_by(seurat_clusters) %>% 
+  summarise(N=n(), 
+            med_nCount_RNA=median(nCount_RNA), 
+            med_nFeature_RNA=median(nFeature_RNA), 
+            med_percent.mt=median(percent.mt),
+            med_percent.ribo=median(percent.ribo))
+
+# check cell type for some cluster (check selected cluster, don't need to check all)
+markers_top <- cd11b.markers %>% group_by(cluster) %>% top_n(n = 20, wt = avg_logFC)
+gene_list <- markers_top %>% filter(cluster==13) %>% select(symbol) %>% unlist()
+results=CMenrich(gene.list= gene_list,species='mouse')
+DT::datatable(results$enrichments)
+results$genes[[1]]
+
+
+#########
+# round 2: all myeloid cells removing clusters with technical issue
+######### 
+
+round="r2"
+
+#after checking clusters, remove cluster: 11, 12, 14
+cd11b.strain <- subset(cd11b.strain, idents = c(11, 12, 14), invert=TRUE)
+
+cd11b.strain <- what_dims(cd11b.strain = cd11b.strain, path = path, strain = strain, round = round)
+
+# choose pca dimension
+pca_dim <- 25
+
+# tried resolustion = 0.5
+cd11b.strain <- cd11b.strain %>% 
+  RunUMAP(reduction = "pca", dims = 1:pca_dim) %>% 
+  FindNeighbors(reduction = "pca", dims = 1:pca_dim) %>% 
+  FindClusters(resolution = 0.5)
+
+res="res05" # specify which resolution used to cluster cells
+
+cd11b.markers <- markers(cd11b.strain = cd11b.strain, path = path, strain = strain, round = round, res=res)
+
+# try resolustion = 0.6
+cd11b.strain <- cd11b.strain %>% 
+  RunUMAP(reduction = "pca", dims = 1:pca_dim) %>% 
+  FindNeighbors(reduction = "pca", dims = 1:pca_dim) %>% 
+  FindClusters(resolution = 0.6)
+
+res="res06" # specify which resolution used to cluster cells
+
+cd11b.markers <- markers(cd11b.strain = cd11b.strain, path = path, strain = strain, round = round, res=res)
+
+# check cell proportions
+prop.table(table(Idents(cd11b.strain), cd11b.strain$Genotype), margin = 2)
+sum_table <- cd11b.strain@meta.data %>% group_by(seurat_clusters) %>% 
+  summarise(N=n(), 
+            med_nCount_RNA=median(nCount_RNA), 
+            med_nFeature_RNA=median(nFeature_RNA), 
+            med_percent.mt=median(percent.mt),
+            med_percent.ribo=median(percent.ribo))
+
+
+# check cell type for some cluster (check selected cluster, don't need to check all)
+markers_top <- cd11b.markers %>% group_by(cluster) %>% top_n(n = 20, wt = avg_logFC)
+gene_list <- markers_top %>% filter(cluster==12) %>% select(symbol) %>% unlist()
+results=CMenrich(gene.list= gene_list,species='mouse')
+DT::datatable(results$enrichments)
+results$genes[[1]]
+
+
+### resolusion 0.6 is better then resolution 0.5 as it seperate DAM cells in more detail
+# cluster 12 show up in WSB.APP/PS1, worth futher digging.
+# cluster 9 show higher mitochondrial content
+
+# save rds for later use (eg. integration or non-microglia reclustering)
+saveRDS(cd11b.strain, paste(path, strain, "_", round, "_", res, "_", "Seurat", ".rds", sep=""))
+
+#########
+# round 3: just microglia
+######### 
+
+round="r3_mg"
+
+# use cd11b.strain result from clustering resolusion = 0.6
+mg.strain <- subset(cd11b.strain, idents = c(0:9, 11,12))
+
+mg.strain <- what_dims(cd11b.strain = mg.strain, path = path, strain = strain, round = round)
+
+# choose pca dimension
+pca_dim <- 22
+
+# try resolustion = 0.6 
+mg.strain <- mg.strain %>% 
+  RunUMAP(reduction = "pca", dims = 1:pca_dim) %>% 
+  FindNeighbors(reduction = "pca", dims = 1:pca_dim) %>% 
+  FindClusters(resolution = 0.6)
+
+res="res06" # specify which resolution used to cluster cells
+
+mg.markers <- markers(cd11b.strain = mg.strain, path = path, strain = strain, round = round, res=res)
+
+# check cell proportions
+prop.table(table(Idents(mg.strain), mg.strain$Genotype), margin = 2)
+sum_table <- mg.strain@meta.data %>% group_by(seurat_clusters) %>% 
+  summarise(N=n(), 
+            med_nCount_RNA=median(nCount_RNA), 
+            med_nFeature_RNA=median(nFeature_RNA), 
+            med_percent.mt=median(percent.mt),
+            med_percent.ribo=median(percent.ribo))
+
+# check cell type for some clusters (check selected clusters, don't need to check all)
+markers_top <- mg.markers %>% group_by(cluster) %>% top_n(n = 20, wt = avg_logFC)
+gene_list <- markers_top %>% filter(cluster==11) %>% select(symbol) %>% unlist()
+results=CMenrich(gene.list= gene_list,species='mouse')
+DT::datatable(results$enrichments)
+results$genes[[1]]
+
+```
+

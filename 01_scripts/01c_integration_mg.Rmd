@@ -1,0 +1,172 @@
+---
+title: "Integration for microglia from each strain"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
+```
+
+
+```{r}
+# integration mg
+
+library(tidyverse)
+library(cowplot)
+library(Seurat)
+
+source("../05_function/norm_scale_dim_cluster_qc.R")
+
+meta <- readRDS("../03_results/01b_integration_from_r2/cd11b_integrated_r2_meta.rds")
+
+# get cells IDs
+# i=21 (PCA number = 21) # j=0.5 (Cluster resolution = 0.5) 
+# find "../output/Integration/pca_res_search/int_r2_pca_21_res_0.5_DimPlot1.png" to grab microglia ID
+# microglia are all clusters except 12, 13, 14
+
+cells <- meta %>% filter(seurat_clusters %in% 0:11) %>% select(cells) %>% unlist() %>% unname()
+
+# get merged unintegrated object
+cd11b.merged <- readRDS("~/code/2019_04_scRNA_CD11b/emase/output/intermediate_rds/emase29files_merged_raw.rds")
+# ribosomal gene
+ribo.genes <- grep(pattern = "^Rp[sl][[:digit:]]", x = rownames(cd11b.merged@assays$RNA), value = TRUE)
+cd11b.merged$percent.ribo <- PercentageFeatureSet(cd11b.merged, features = ribo.genes)
+
+cd11b.merged <- cd11b.merged %>% 
+  subset(cells=cells) %>% 
+  SplitObject(split.by = "Strain") 
+
+cd11b.merged %>% map(dim)
+
+for (i in seq_along(cd11b.merged)){
+  cd11b.merged[[i]] <- cd11b.merged[[i]] %>% 
+    NormalizeData() %>% 
+    FindVariableFeatures(selection.method = "vst", nfeatures = 3000)
+}
+
+# integration
+cd11b.anchors <- FindIntegrationAnchors(object.list = cd11b.merged, 
+                                        dims = 1:30,
+                                        anchor.features = 3000)
+rm(cd11b.merged)
+cd11b.integrated <- IntegrateData(anchorset = cd11b.anchors, dims = 1:30)
+
+
+DefaultAssay(cd11b.integrated) <- "integrated"
+# Run the standard workflow for visualization and clustering
+cd11b.integrated <- ScaleData(cd11b.integrated, 
+                              vars.to.regress = c("batch", "ribo.genes", "percent.mt", "nFeature_RNA"))
+cd11b.integrated <- RunPCA(cd11b.integrated, npcs = 30)
+
+# cluster cells by first using PCA dimension of 30, later tune the different parameters to find the best clustering
+cd11b.integrated <- RunUMAP(cd11b.integrated, reduction = "pca", dims = 1:18)
+cd11b.integrated <- FindNeighbors(cd11b.integrated, reduction = "pca", dims = 1:18)
+cd11b.integrated <- FindClusters(cd11b.integrated, resolution = 0.5)
+
+saveRDS(cd11b.integrated, "../03_results/01c_integration_mg/mg_int.rds")
+
+
+
+###
+############
+
+
+path="../03_results/01c_integration_mg/Integration_mg/"
+
+plot_title="int_mg"
+
+# use different PCA and resolution to determine clusters less PCA dimension: pca dim = 25 (previously 30)
+
+DefaultAssay(cd11b.integrated) <- "integrated"
+
+# generate ElbowPlot to have a guess of how many pca to take 
+cd11b.integrated <- JackStraw(cd11b.integrated, num.replicate = 20, dim=30)
+cd11b.integrated <- ScoreJackStraw(cd11b.integrated, dims = 1:30)
+ElbowPlot(cd11b.integrated, ndims = 30) + ggtitle(label = plot_title)
+ggsave(paste(path, plot_title, "_", "ElbowPlot",  ".png", sep=""), units = "in", width = 7, height = 4,  dpi=150)
+
+print(cd11b.integrated[["pca"]], dims = 1:30, nfeatures = 10)
+
+pca_dim <- c(19, 20)
+res <- c(0.5, 0.6, 0.7)
+
+path="../03_results/01c_integration_mg/pca_res_search/"
+plot_title="int_mg"
+
+for (i in pca_dim){
+  
+  DefaultAssay(cd11b.integrated) <- "integrated"
+  cd11b.integrated <- cd11b.integrated %>% 
+    RunUMAP(reduction = "pca", dims = 1:i) 
+  
+  for (j in res){
+    
+    cd11b.integrated <- cd11b.integrated %>%
+      FindNeighbors(reduction = "pca", dims = 1:i) %>% 
+      FindClusters(resolution = j)
+    
+    # markers (only calculate under the lowest resolution)
+    if (j==0.5){
+      
+      DefaultAssay(cd11b.integrated) <- "RNA"
+      cd11b.markers <- FindAllMarkers(cd11b.integrated, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25, max.cells.per.ident=300) #max.cells.per.ident
+      proptbl <- prop.table(table(Idents(cd11b.integrated), cd11b.integrated$Group), margin = 2)
+      save(cd11b.markers, proptbl, file=paste(path, plot_title, "_", "pca_", i, "_res_", j, "_markers_proptbl",  ".rda", sep=""))
+    }else{
+      proptbl <- prop.table(table(Idents(cd11b.integrated), cd11b.integrated$Group), margin = 2)
+      save(proptbl, file=paste(path, plot_title, "_", "pca_", i, "_res_", j, "_proptbl",  ".rda", sep=""))
+    }
+    
+    # visualize
+    
+    DimPlot(cd11b.integrated, reduction = "umap", label = TRUE, pt.size = 0.001) + 
+      ggtitle(label = paste(plot_title, "pca", i, "res", j, sep="_")) + coord_fixed()
+    ggsave(paste(path, plot_title, "_", "pca_", i, "_res_", j, "_DimPlot1",  ".png", sep=""), units = "in", width = 7.3, height = 7,  dpi=100)
+    
+    DimPlot(cd11b.integrated, reduction = "umap", label = FALSE, group.by="batch", pt.size = 0.001) + 
+      ggtitle(label = plot_title) + coord_fixed()
+    ggsave(paste(path, plot_title, "_", "pca_", i, "_res_", j, "_DimPlot2",  ".png", sep=""), units = "in", width = 7.3, height = 7,  dpi=100)
+    
+    DimPlot(cd11b.integrated, reduction = "umap", label = TRUE, pt.size = 0.001, split.by = "Genotype")+ 
+      ggtitle(label = plot_title)+ coord_fixed()
+    ggsave(paste(path, plot_title, "_", "pca_", i, "_res_", j, "_DimPlot3",  ".png", sep=""), units = "in", width = 8.6, height = 4.7,  dpi=100)
+    
+    DimPlot(cd11b.integrated, reduction = "pca", label = TRUE, pt.size = 0.001) + 
+      ggtitle(label = plot_title)
+    ggsave(paste(path, plot_title, "_", "pca_", i, "_res_", j, "_DimPlot4",  ".png", sep=""), units = "in", width = 10, height = 5,  dpi=100)
+    
+    p_QC <- c("nFeature_RNA", "percent.mt", "percent.ribo") %>% map(~QC_plot(cd11b.integrated@meta.data, .))
+    p <- plot_grid(plotlist=p_QC, ncol=1, align="hv")
+    title <- ggdraw() + draw_label(plot_title, fontface='bold')
+    plot_grid(title, p, ncol=1, rel_heights=c(0.1, 1))
+    ggsave(paste(path, plot_title, "_", "pca_", i, "_res_", j, "_QC",  ".png", sep=""), units = "in", width = 10, height = 5,  dpi=100)
+    
+  }
+} 
+
+
+# explore markers
+
+markers_top <- cd11b.markers %>% group_by(cluster) %>% top_n(n = 20, wt = avg_logFC)
+
+## choose the best parameter for microglia clusters: pca dim = 17, res=0.6
+
+i=17
+j=0.6
+
+DefaultAssay(cd11b.integrated) <- "integrated"
+cd11b.integrated <- cd11b.integrated %>% 
+  RunUMAP(reduction = "pca", dims = 1:i) %>%
+  FindNeighbors(reduction = "pca", dims = 1:i) %>% 
+  FindClusters(resolution = j)
+
+# markers (only calculate under the lowest resolution)
+DefaultAssay(cd11b.integrated) <- "RNA"
+cd11b.markers <- FindAllMarkers(cd11b.integrated, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25, max.cells.per.ident=300) #max.cells.per.ident
+proptbl <- prop.table(table(Idents(cd11b.integrated), cd11b.integrated$Group), margin = 2)
+save(cd11b.markers, proptbl, file=paste(path, plot_title, "_", "pca_", i, "_res_", j, "_markers_proptbl",  ".rda", sep=""))
+
+# save the object with i=17, j=0.6
+saveRDS(cd11b.integrated, "../03_results/01c_integration_mg/mg_int.rds")
+```
+

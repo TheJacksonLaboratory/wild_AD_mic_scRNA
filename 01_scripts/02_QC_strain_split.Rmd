@@ -1,0 +1,313 @@
+---
+title: "Quality control for myeloid single cell"
+output: html_document
+---
+
+```{r global_options}
+knitr::opts_chunk$set(warning=FALSE, message=FALSE)
+```
+
+```{r}
+library(tidyverse)
+library(cowplot)
+library(Seurat)
+library(extrafont)
+
+```
+
+
+# 1. QC for merged but unintegrated data
+
+```{r fig.width= 3.5, fig.height= 4.5}
+out_path <- "../03_results/02_QC_strain_split/"
+
+cd11b.merged <- readRDS("~/code/wild_AD_mic_scRNA/02_data/intermediate_rds/emase29files_merged_raw.rds")
+
+strain <- c("B6", "CAST", "PWK", "WSB")
+cols = c("#888888", "#00AA00", "#FF0000", "#9900EE")
+
+cd11b.merged$Strain <- str_replace(cd11b.merged$Strain, pattern = "B6J", replacement = "B6")
+cd11b.merged$Strain <- factor(cd11b.merged$Strain, levels = strain)
+
+meta <- cd11b.merged@meta.data
+rm(cd11b.merged)
+dim(meta)
+
+meta_tidy <- meta %>% 
+  select(orig.ident, nCount_RNA, nFeature_RNA, Strain, Genotype, percent.mt) %>% 
+  gather(-orig.ident, -Strain, -Genotype, key = "QC", value = "value")
+
+# plot 
+meta_tidy %>% ggplot(aes(y=value, x=orig.ident, color=Strain)) +
+  facet_grid(QC ~ Strain, scales = "free_y") + 
+  geom_violin() +
+    geom_boxplot(width=0.15, outlier.shape = NA, alpha=0.7) +
+    scale_colour_manual(values=cols) + 
+    theme_bw()+
+    theme(legend.position = "none", 
+          axis.title = element_blank(),
+          strip.text = element_text(face = "bold", size = 12, family = "Arial"),
+          axis.text = element_text(size = 10),
+          axis.text.x = element_blank(),
+          axis.ticks.x = element_blank())
+ggsave(filename = "QC01_merged_unintegrated.png", path = out_path, width = 3.5, height = 4.5, dpi = 300)
+
+# wrap into function for the following plots
+QC_plot <- function(data){
+  p <- data %>% 
+  select(orig.ident, nCount_RNA, nFeature_RNA, Strain, Genotype, percent.mt) %>% 
+  gather(-orig.ident, -Strain, -Genotype, key = "QC", value = "value") %>% 
+  ggplot(aes(y=value, x=orig.ident, color=Strain)) +
+  facet_grid(QC ~ Strain, scales = "free_y") + 
+  geom_violin() +
+    geom_boxplot(width=0.15, outlier.shape = NA, alpha=0.7) +
+    scale_colour_manual(values=cols) + 
+    theme_bw()+
+    theme(legend.position = "none", 
+          axis.title = element_blank(),
+          strip.text = element_text(face = "bold", size = 12, family = "Arial"),
+          axis.text = element_text(size = 10),
+          axis.text.x = element_blank(),
+          axis.ticks.x = element_blank())
+  return(p)
+}
+
+meta %>% 
+  group_by(Strain) %>% 
+  summarise(med_nCount_RNA=median(nCount_RNA), 
+            med_nFeature_RNA=median(nFeature_RNA), 
+            med_percent.mt=median(percent.mt),
+            N_cells=n())
+
+```
+
+
+# 2. QC for merged but unintegrated data, filtered
+
+```{r , fig.width=3.5, fig.height=4.5}
+
+meta_filter <- meta %>% 
+  filter(nFeature_RNA > 600, percent.mt < 8)
+dim(meta_filter)
+
+QC_plot(meta_filter)
+ggsave(filename = "QC02_merged_unintegrated_filtered.png", path = out_path, width = 3.5, height = 4.5, dpi = 300)
+
+meta_filter %>% 
+  group_by(Strain) %>% 
+  summarise(med_nCount_RNA=median(nCount_RNA), 
+            med_nFeature_RNA=median(nFeature_RNA), 
+            med_percent.mt=median(percent.mt),
+            N_cells=n())
+
+```
+
+# 3. QC for after all myeloid cell integration
+
+```{r , fig.width=3.5, fig.height=4.5}
+cd11b.integrated <- readRDS("~/code/2019_04_scRNA_CD11b/emase_2/output/Integration/cd11b_integrated_r2.rds")
+
+cd11b.integrated$Strain <- str_replace(cd11b.integrated$Strain, pattern = "B6J", replacement = "B6")
+cd11b.integrated$Strain <- factor(cd11b.integrated$Strain, levels = strain)
+
+meta_int <- cd11b.integrated@meta.data
+
+dim(meta_int)
+
+QC_plot(meta_int)
+ggsave(filename = "QC03_integrated_myeloid.png", path = out_path, width = 3.5, height = 4.5, dpi = 300)
+
+meta_int%>% 
+  group_by(Strain) %>% 
+  summarise(med_nCount_RNA=median(nCount_RNA), 
+            med_nFeature_RNA=median(nFeature_RNA), 
+            med_percent.mt=median(percent.mt),
+            N_cells=n())
+
+
+```
+
+# Plot Cd11b expression levels from single-cell RNA-seq regardless of Clusters
+
+```{r , fig.width= 4, fig.height= 2}
+## combine homeostatic microglia
+cd11b.integrated$final_clusters <-  ifelse(cd11b.integrated$seurat_clusters %in% 0:5,"H",
+                                           cd11b.integrated$seurat_clusters %>% as.character())
+cd11b.integrated$final_clusters <- factor(cd11b.integrated$final_clusters, 
+                                          levels = c("H", "6", "7", "8", "9", "10", "11", "12"))
+cd11b.integrated$Genotype <- factor(cd11b.integrated$Genotype, levels = c("WT", "APP/PS1"))
+
+cd11b.integrated$Group <- gsub("B6J", "B6", cd11b.integrated$Group)
+
+cd11b.integrated$Group <- factor(cd11b.integrated$Group, 
+                                 levels=c("B6_WT", "B6_APP/PS1", "CAST_WT", "CAST_APP/PS1", "PWK_WT","PWK_APP/PS1", "WSB_WT", "WSB_APP/PS1"))
+
+Idents(cd11b.integrated) <- "Strain"
+VlnPlot(cd11b.integrated , features = "Itgam", pt.size = 0, split.by = "Genotype", ncol = 4, cols =  c("#E69F00", "#999999")) + 
+        theme(legend.position = "right", 
+              axis.title = element_blank(), 
+              axis.text.x = element_text(size = 10, face = "bold"),
+              axis.text.y = element_text(size = 10), 
+              title = element_text(size = 10, family = "Arial")
+              )
+ggsave(filename = "QC_Itgam_single_all_myeloid_clusters.png", path = out_path, width = 4, height = 2, dpi = 300)
+
+rm(cd11b.integrated)
+```
+
+# 4. QC for after all microglia integration
+
+```{r, fig.width=3.5, fig.height=4.5}
+
+cd11b.integrated <- readRDS("~/code/2019_04_scRNA_CD11b/emase_2/output/Integration_mg/mg_int.rds")
+cd11b.integrated$Strain <- str_replace(cd11b.integrated$Strain, pattern = "B6J", replacement = "B6")
+cd11b.integrated$Strain <- factor(cd11b.integrated$Strain, levels = strain)
+
+meta_micro <- cd11b.integrated@meta.data
+rm(cd11b.integrated)
+dim(meta_micro)
+
+QC_plot(meta_micro)
+ggsave(filename = "QC04_integrated_microglia.png", path = out_path, width = 3.5, height = 4.5, dpi = 300)
+
+meta_micro%>% 
+  group_by(Strain) %>% 
+  summarise(med_nCount_RNA=median(nCount_RNA), 
+            med_nFeature_RNA=median(nFeature_RNA), 
+            med_percent.mt=median(percent.mt),
+            N_cells=n())
+
+```
+
+
+
+
+# Plot Cd11b (gene: Itgam) expression levels from bulk RNA-seq
+
+```{r fig.width=4, fig.height=1.5}
+library(readxl)
+
+strain <- c("B6", "CAST", "PWK", "WSB")
+cols = c("#888888", "#00AA00", "#FF0000", "#9900EE")
+
+in_path <- "../raw_data-paper/00_overall_QC_strain_split/all_TPMs.xls"
+out_path <- "../output-paper/00_overall_QC_strain_split/"
+
+meta <- read_xls(in_path, n_max = 3, col_names = FALSE)
+df <- read_xls(in_path, col_names = TRUE, skip = 3)
+
+colnames(df)[1] <- "Symbol"
+
+df_filsel <- df %>% 
+  filter(Symbol %in% "Itgam") %>% 
+  select(contains(strain[1]), contains(strain[2]), contains(strain[3]), contains(strain[4]))
+
+df_gene <- t(df_filsel) %>% 
+  data.frame(Itgam=.) %>% 
+  rownames_to_column(var="group") %>% 
+  separate(group, c("Strain", "GT", "Sex", "ID"), remove = FALSE) %>% 
+  mutate(GT=str_replace(GT, "APP", "APP_PS1"),
+         GT=factor(GT, levels = c("WT", "APP_PS1")),
+         Strain=factor(Strain, levels = strain))
+
+df_gene %>%
+  filter(Sex=="F") %>%  # select only female group
+  ggplot(aes(y=Itgam, x= GT, color = Strain)) +
+    facet_grid(. ~ Strain, scales= "fixed") +
+    geom_boxplot(width=0.5, outlier.shape = NA) +
+    geom_jitter(aes(shape= GT), width = 0.2, size=2, alpha=0.5) +
+    scale_colour_manual(values=cols) + 
+    theme_bw()+
+    theme(legend.position = "none",
+          strip.text = element_text(face = "bold", size = 12, family = "Arial"),
+          axis.title = element_blank(),
+          axis.text.x = element_blank(), 
+          axis.ticks.x = element_blank())
+ggsave(filename = "QC_Itgam_bulk.png", path = out_path, width = 4, height = 1.5, dpi = 300)
+
+## N for each group:(select female group)
+df_gene %>% 
+  filter(Sex=="F") %>% 
+  group_by(Strain, GT) %>% 
+  summarise(N=n())
+
+```
+
+just to get the figure legends 
+```{r fig.width=6, fig.height=4}
+df_gene %>%
+  filter(Sex=="F") %>% 
+  ggplot(aes(y=Itgam, x= GT, color = Strain)) +
+    facet_grid(. ~ Strain, scales= "fixed") +
+    geom_boxplot(width=0.5, outlier.shape = NA) +
+    geom_jitter(aes(shape= GT), width = 0.2, size=2, alpha=0.5) +
+    scale_colour_manual(values=cols) + 
+    theme_bw()+
+    theme(legend.position = "right",
+          legend.direction = "horizontal",
+          strip.text = element_text(face = "bold", size = 12, family = "Arial"),
+          axis.title = element_blank(),
+          axis.text.x = element_blank(), 
+          axis.ticks.x = element_blank())
+ggsave(filename = "QC_Itgam_bulk_legends.png", path = out_path, width = 6, height = 4, dpi = 300)
+
+
+```
+
+
+## Check the strain or genotype effect on Itgam expression (on female samples from B6 and 3 wild strains)
+```{r}
+
+# select the Females samples of B6, CAST, PWK and WSB mice
+
+# remove duplicated rows
+df <- df[!duplicated(df$Symbol),]
+
+df_select <- df %>% 
+  column_to_rownames(var = "Symbol")  %>% 
+  select(contains(strain[1]), contains(strain[2]), contains(strain[3]), contains(strain[4])) %>%
+  select(contains("_F_")) %>% 
+  drop_na()  ## NA needs to be removed before the using the lm model
+
+# transpose the data table for using lm function under "map" framework
+df_select_t <- t(df_select) %>% as.data.frame()
+
+# generate meta table to build lm model terms
+meta <- rownames(df_select_t) %>% 
+  data.frame(group=.) %>% 
+  separate(group, c("Strain", "GT", "Sex", "ID"), remove = FALSE) %>% 
+  mutate(GT=str_replace(GT, "APP", "APP_PS1"),
+         GT=factor(GT, levels = c("WT", "APP_PS1")),
+         Strain=factor(Strain, levels = strain))
+
+```
+
+### Repeated lm function on each gene
+```{r}
+Strain <- factor(meta$Strain)
+Genotype <- meta$GT
+
+fit <- df_select_t%>% map(~ lm(. ~ Genotype*Strain) %>% summary()) # work when removed NA values
+```
+
+
+```{r}
+source("~/code/2019_04_scRNA_CD11b/functions/my_GLM.R")
+
+stat_table_all <- stat_table(fit)
+dim(stat_table_all)
+head(stat_table_all)
+
+keep <- rownames(stat_table_all)=="Itgam"
+
+stat_table_all[keep, ] %>% t() # show Itgam result
+
+```
+
+Therefore, there is Strain effect but no Genotype effect on the Itgam expression (log2(TPM+1)) using linear regression (FDR "3.318024e-13").
+
+
+
+
+
+

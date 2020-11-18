@@ -1,0 +1,10 @@
+*/.Rproj.user
+*/.Rhistory
+*/.RData
+*/.Ruserdata
+02_data/*
+03_results/*
+Documents/*
+emase/*
+emase_2/*
+02_data/intermediat_rds/*.rds

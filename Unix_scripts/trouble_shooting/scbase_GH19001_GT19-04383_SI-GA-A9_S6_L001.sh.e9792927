@@ -1,0 +1,23 @@
+[scBASE::collate][05/21/2019 02:00:14PM] Looking at /projects/howell-lab/yangs/projects/2019_04_scRNA_CD11b/GH19001_GH19008/05_emase/GH19001_GT19-04383_SI-GA-A9_S6_L001 directly for count files...
+[scBASE::collate][05/21/2019 02:00:14PM] 36 files were found under /projects/howell-lab/yangs/projects/2019_04_scRNA_CD11b/GH19001_GH19008/05_emase/GH19001_GT19-04383_SI-GA-A9_S6_L001
+[scBASE::collate][05/21/2019 02:00:14PM] Haplotypes: 
+[scBASE::collate][05/21/2019 02:00:15PM] Number of genes: 115125 [ENSMUST00000000001 ENSMUST00000000003 ...]
+[scBASE::collate][05/21/2019 02:00:15PM] Loading counts from /projects/howell-lab/yangs/projects/2019_04_scRNA_CD11b/GH19001_GH19008/05_emase/GH19001_GT19-04383_SI-GA-A9_S6_L001/0_100.gene.counts:
+Traceback (most recent call last):
+  File "/opt/compsci/Anaconda/4.2.0/envs/scbase/bin/scbase", line 11, in <module>
+    load_entry_point('scbase==0.1.0', 'console_scripts', 'scbase')()
+  File "/opt/compsci/Anaconda/4.2.0/envs/scbase/lib/python3.7/site-packages/click/core.py", line 764, in __call__
+    return self.main(*args, **kwargs)
+  File "/opt/compsci/Anaconda/4.2.0/envs/scbase/lib/python3.7/site-packages/click/core.py", line 717, in main
+    rv = self.invoke(ctx)
+  File "/opt/compsci/Anaconda/4.2.0/envs/scbase/lib/python3.7/site-packages/click/core.py", line 1137, in invoke
+    return _process_result(sub_ctx.command.invoke(sub_ctx))
+  File "/opt/compsci/Anaconda/4.2.0/envs/scbase/lib/python3.7/site-packages/click/core.py", line 956, in invoke
+    return ctx.invoke(self.callback, **ctx.params)
+  File "/opt/compsci/Anaconda/4.2.0/envs/scbase/lib/python3.7/site-packages/click/core.py", line 555, in invoke
+    return callback(*args, **kwargs)
+  File "/opt/compsci/Anaconda/4.2.0/envs/scbase/lib/python3.7/site-packages/scbase-0.1.0-py3.7.egg/scbase/cli.py", line 148, in collate
+    scbase.collate(indir, loomfile, tidfile, filetype, filename, model)
+  File "/opt/compsci/Anaconda/4.2.0/envs/scbase/lib/python3.7/site-packages/scbase-0.1.0-py3.7.egg/scbase/scbase.py", line 497, in collate
+    gi = gene_idx[item[0]]
+KeyError: 'ENSMUSG00000000001'
