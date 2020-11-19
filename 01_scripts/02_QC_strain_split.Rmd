@@ -105,7 +105,7 @@ meta_filter %>%
 # 3. QC for after all myeloid cell integration
 
 ```{r , fig.width=3.5, fig.height=4.5}
-cd11b.integrated <- readRDS("~/code/2019_04_scRNA_CD11b/emase_2/output/Integration/cd11b_integrated_r2.rds")
+cd11b.integrated <- readRDS("~/code/wild_AD_mic_scRNA/02_data/intermediate_rds/cd11b_integrated_r2.rds")
 
 cd11b.integrated$Strain <- str_replace(cd11b.integrated$Strain, pattern = "B6J", replacement = "B6")
 cd11b.integrated$Strain <- factor(cd11b.integrated$Strain, levels = strain)
@@ -159,7 +159,7 @@ rm(cd11b.integrated)
 
 ```{r, fig.width=3.5, fig.height=4.5}
 
-cd11b.integrated <- readRDS("~/code/2019_04_scRNA_CD11b/emase_2/output/Integration_mg/mg_int.rds")
+cd11b.integrated <- readRDS("~/code/wild_AD_mic_scRNA/02_data/intermediate_rds/mg_int.rds")
 cd11b.integrated$Strain <- str_replace(cd11b.integrated$Strain, pattern = "B6J", replacement = "B6")
 cd11b.integrated$Strain <- factor(cd11b.integrated$Strain, levels = strain)
 
@@ -190,8 +190,8 @@ library(readxl)
 strain <- c("B6", "CAST", "PWK", "WSB")
 cols = c("#888888", "#00AA00", "#FF0000", "#9900EE")
 
-in_path <- "../raw_data-paper/00_overall_QC_strain_split/all_TPMs.xls"
-out_path <- "../output-paper/00_overall_QC_strain_split/"
+in_path <- "../02_data/all_TPMs.xls"
+out_path <- "../03_results/02_QC_strain_split/"
 
 meta <- read_xls(in_path, n_max = 3, col_names = FALSE)
 df <- read_xls(in_path, col_names = TRUE, skip = 3)
@@ -292,7 +292,7 @@ fit <- df_select_t%>% map(~ lm(. ~ Genotype*Strain) %>% summary()) # work when r
 
 
 ```{r}
-source("~/code/2019_04_scRNA_CD11b/functions/my_GLM.R")
+source("../05_function/my_GLM.R")
 
 stat_table_all <- stat_table(fit)
 dim(stat_table_all)
