@@ -1,4 +1,5 @@
-## copy the split violin funciton from an online post: https://stackoverflow.com/questions/51228076/ggplot-split-violin-plot-with-horizontal-mean-lines
+## copy the split violin funciton from an online post: 
+## https://stackoverflow.com/questions/51228076/ggplot-split-violin-plot-with-horizontal-mean-lines
 
 GeomSplitViolin <- ggproto("GeomSplitViolin", GeomViolin, draw_group = function(self, data, ..., draw_quantiles = NULL){
   data <- transform(data, xminv = x - violinwidth * (x - xmin), xmaxv = x + violinwidth * (xmax - x))

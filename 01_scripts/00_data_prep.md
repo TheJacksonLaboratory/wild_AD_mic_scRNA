@@ -5,26 +5,15 @@ output:
     keep_md: true
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(eval=FALSE, error=FALSE, eval=FALSE)
-```
+
 
 ## Transfer loom file to Seurat object for each individual samples
 
-```{r, echo=FALSE}
-#tutorial
-#https://satijalab.org/seurat/v3.0/conversion_vignette.html
-#https://satijalab.org/loomR/loomR_tutorial.html
-
-library(loomR)
-library(Seurat)
-library(tidyverse)
-library(cowplot)
-```
 
 
-```{r}
 
+
+```r
 path_in <- "../02_data/loom_file/" ## outputfile from scbase command
 path_out <- "../02_data/loom2Seurat"
 
@@ -43,14 +32,12 @@ loom2Seurat("GH19001_GT19-04383_SI-GA-A9_S6_L001.loom", path_in=path_in, path_ou
 
 filename <- list.files(path_in) %>% as.list()
 filename %>% walk(safely(loom2Seurat), path_in=path_in, path_out=path_out)
-
-
 ```
 
 ## Prepare metadata
 
-```{r}
 
+```r
 # batch=c("A", "B", "C", "D")
 meta.all <- readRDS("../02_data/intermediate_rds/sc_design_file.rds")
 
@@ -67,14 +54,12 @@ meta.all <- meta.all %>%
 
 meta.all %>% 
   group_by(Strain, Genotype) %>% summarise(N=n())
-
-
 ```
 
 
 ## Merge individual Seurat objects into single Seurat object
-```{r}
 
+```r
 sample.list <- paste(meta.all$ID_prefix, ".rds", sep="")
 sample_path.list <- file.path("../02_data/loom2Seurat", sample.list)
 

@@ -1,6 +1,7 @@
 
 # extract q, r2 and coefficient from lm model
 
+
 library(tidyverse)
 stat_table <- function(glm.fit, qval_max, r2_min) {
   r2 <- glm.fit %>% map_df(~.$r.squared) %>% t()

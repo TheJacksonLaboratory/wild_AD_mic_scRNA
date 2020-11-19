@@ -5,9 +5,7 @@ output:
     keep_md: true
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
-```
+
 
 ## Analyzing strains seperartely 
 
@@ -16,7 +14,8 @@ knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
 
 ### Packages and functions
 
-```{r}
+
+```r
 library(tidyverse)
 library(cowplot)
 library(Seurat)
@@ -25,7 +24,8 @@ source("../05_function/norm_scale_dim_cluster_qc.R")
 ```
 
 ## B6 strain
-```{r}
+
+```r
 ######### load merged but unintegrated data
 ######### filter only cluster identified in integrated data and copy the original cluster info to filtered merged data 
 cd11b.merged <- readRDS("~/code/wild_AD_mic_scRNA/02_data/intermediate_rds/emase29files_merged_raw.rds")
@@ -234,7 +234,8 @@ results$genes[[1]]
 
 
 ## CAST strain
-```{r}
+
+```r
 ######### filter only cluster identified in integrated data and copy the original cluster info to filtered merged data 
 cd11b.merged <- readRDS("~/code/wild_AD_mic_scRNA/02_data/intermediate_rds/emase29files_merged_raw.rds")
 cd11b.merged <- subset(cd11b.merged, subset = nFeature_RNA > 600 & percent.mt < 8)
@@ -432,7 +433,8 @@ results$genes[[1]]
 
 
 ## PWK strain
-```{r}
+
+```r
 ######### load merged but unintegrated data
 ######### filter only cluster identified in integrated data and copy the original cluster info to filtered merged data 
 cd11b.merged <- readRDS("~/code/wild_AD_mic_scRNA/02_data/intermediate_rds/emase29files_merged_raw.rds")
@@ -636,12 +638,12 @@ gene_list <- markers_top %>% filter(cluster==8) %>% select(symbol) %>% unlist()
 results=CMenrich(gene.list= gene_list,species='mouse')
 DT::datatable(results$enrichments)
 results$genes[[1]]
-
 ```
 
 
 ## WSB strain
-```{r}
+
+```r
 ######### load merged but unintegrated data
 ######### filter only cluster identified in integrated data and copy the original cluster info to filtered merged data 
 cd11b.merged <- readRDS("~/code/wild_AD_mic_scRNA/02_data/intermediate_rds/emase29files_merged_raw.rds")
@@ -843,6 +845,5 @@ gene_list <- markers_top %>% filter(cluster==11) %>% select(symbol) %>% unlist()
 results=CMenrich(gene.list= gene_list,species='mouse')
 DT::datatable(results$enrichments)
 results$genes[[1]]
-
 ```
 

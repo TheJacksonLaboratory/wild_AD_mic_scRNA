@@ -1,5 +1,5 @@
 
-## stat_table:  
+## stat_table function:  
 # 1. retrieve the R-square(r2) and the corrected p value (q) from the fit summary of each gene
 # 2. filter genes based on qval<0.05, r2>0.5, arrange based on q (ascending).
 # 3. from filtered genes, retrieve coefficient of estimate and p val for each gene for down stream analysis.

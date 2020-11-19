@@ -1,7 +1,5 @@
 ##
 
-## 
-
 # plot individual genes in violin plot
 my_vlnPlot <- function(gene, object, idents=NULL, title = FALSE, pt.size=0, slot="data"){
   if (title){

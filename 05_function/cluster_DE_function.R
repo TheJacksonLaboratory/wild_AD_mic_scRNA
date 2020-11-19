@@ -1,4 +1,6 @@
-## get DE genes based on FDR and FC. The input file is DE gene analysis from Seurat analysis
+## get DE genes based on FDR and FC. 
+## The input file is DE gene analysis from Seurat package
+
 
 cluster_DE <- function(logFDR_cut, logFC_cut, df){
   # input:

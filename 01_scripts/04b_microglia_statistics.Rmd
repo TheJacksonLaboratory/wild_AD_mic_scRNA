@@ -1,0 +1,241 @@
+---
+title: "Microglia  Statistics"
+output: 
+  html_document:
+    keep_md: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE)
+```
+
+```{r}
+library(tidyverse)
+library(cowplot)
+library(Seurat)
+
+path = "../03_results/04b_microglia_statistics/"
+```
+
+### Load object
+```{r}
+cd11b.integrated <- readRDS("../02_data/intermediate_rds/mg_int.rds")  # i=17 (PCA dim) # j=0.6 (resolution)
+
+DefaultAssay(cd11b.integrated) <- "RNA"
+cd11b.integrated@meta.data %>% group_by(Strain, Genotype) %>% summarise(N=n())
+
+cd11b.integrated$Strain <- str_replace_all(cd11b.integrated$Strain, pattern = "B6J", replacement = "B6")
+cd11b.integrated$Group <- str_replace_all(cd11b.integrated$Group, pattern = "B6J", replacement = "B6")
+cd11b.integrated$Group <- factor(cd11b.integrated$Group, levels = c("B6_WT","B6_APP/PS1","CAST_WT", "CAST_APP/PS1",
+                                                                    "PWK_WT",  "PWK_APP/PS1", "WSB_WT", "WSB_APP/PS1"))
+cd11b.integrated$batch <- factor(cd11b.integrated$batch, levels = c("D", "C", "B", "A"))
+
+
+sum_table <- cd11b.integrated@meta.data %>% group_by(seurat_clusters) %>% summarise(N=n(), ave_nCount_RNA=median(nCount_RNA), ave_nFeature_RNA=median(nFeature_RNA), ave_percent.mt=median(percent.mt))
+prop.table(table(Idents(cd11b.integrated), cd11b.integrated$Group), margin = 2)
+```
+
+### plot both genotypes in all strains (all replicates combined)
+```{r, fig.width=4.5, fig.height=4.5}
+# generate meta data, combine cluster 0-5 into H for fraction plot (all replicates combined)
+cd11b.meta <- cd11b.integrated@meta.data %>% 
+  mutate(Genotype=factor(Genotype, levels=c("WT", "APP/PS1")),
+         Strain=factor(Strain, levels = c("B6", "CAST", "PWK", "WSB")),
+         new_clusters=ifelse(seurat_clusters %in% 0:5, "H", as.character(seurat_clusters)),
+         new_clusters=factor(new_clusters, levels = c("H", "6", "7", "8", "9", "10", "11", "12"))) %>% 
+  group_by(Strain, Genotype,new_clusters) %>% 
+  summarise(N=n())
+
+ggplot(cd11b.meta, aes(y=N, x=Genotype, fill= new_clusters)) + 
+  geom_bar(stat="identity", position="fill", color="black") + 
+  labs(y="Fraction", fill = "Clusters") +
+  facet_grid(~ Strain) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, face = c("bold", "bold.italic")),
+        axis.title.x = element_blank(), 
+        strip.text.x = element_text(face = "bold"), 
+        axis.ticks.x = element_blank(), 
+        axis.line.x = element_blank())
+ggsave(paste(path, "fraction_WT_APPPS1.png", sep=""), width = 4.5, height = 4.5, units = "in")
+
+```
+
+### plot both genotypes in all strains (all replicates separated)
+```{r, fig.width=3.5, fig.height=5}
+### generate meta data, combine cluster 0-5 into H for fraction plot (all replicates separated)
+cd11b.meta <- cd11b.integrated@meta.data %>% 
+  mutate(Genotype=factor(Genotype, levels=c("WT", "APP/PS1")),
+         Strain=factor(Strain, levels = c("B6", "CAST", "PWK", "WSB")),
+         new_clusters=ifelse(seurat_clusters %in% 0:5, "H", as.character(seurat_clusters)),
+         new_clusters=factor(new_clusters, levels = c("H", "6", "7", "8", "9", "10", "11", "12"))) %>% 
+  group_by(rep, Strain, Genotype, Group, batch, new_clusters) %>% 
+  arrange(Group) %>%
+  summarise(N=n())
+
+p <- ggplot(cd11b.meta, aes(y=N, x=batch, fill= new_clusters)) + 
+  geom_bar(stat="identity", position=position_fill(), color="black") + 
+  labs(y="Fraction", fill = "Clusters") +
+  facet_grid(Group~., switch="y")+
+  coord_flip()+
+  theme(axis.text = element_blank(),
+        axis.title = element_blank(), 
+        strip.text = element_blank(), 
+        axis.ticks.y = element_blank(), 
+        axis.line.y = element_blank(), 
+        legend.position = "none")
+ggsave(paste(path, "fraction_replicates_seperated.png", sep=""), p, width = 3.5, height = 5, units = "in")
+
+# top to bottome: "B6_WT","B6_APP/PS1","CAST_WT", "CAST_APP/PS1", "PWK_WT",  "PWK_APP/PS1", "WSB_WT", "WSB_APP/PS1"
+```
+
+### Box plot for all microglia
+#### generate meta data, combine cluster 0-5 into H for statistical testing and box plot
+```{r}
+cd11b.meta.stat <- cd11b.integrated@meta.data %>% 
+  mutate(Genotype=factor(Genotype, levels=c("WT", "APP/PS1")),
+         Strain=factor(Strain, levels = c("B6", "CAST", "PWK", "WSB")),
+         new_clusters=ifelse(seurat_clusters %in% 0:5, "H", as.character(seurat_clusters)),
+         new_clusters=factor(new_clusters, levels = c("H", "6", "7", "8", "9", "10", "11", "12"))) %>% 
+  group_by(Strain, Genotype,rep, new_clusters) %>% 
+  summarise(Med_nFeature=median(nFeature_RNA), 
+            Med_percent_mt=median(percent.mt), 
+            Med_percent_ribo=median(percent.ribo),
+            N=n()) %>% 
+  group_by(rep,Percent=N/sum(N)*100)
+
+```
+
+
+```{r, fig.width=4, fig.height=10}
+cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
+cd11b.meta.stat %>%
+  ggplot(aes(y=Percent, x=Genotype, color=Genotype)) +
+  geom_boxplot(outlier.size = 0, alpha=0.5) +
+  geom_point(aes(color=Genotype), position=position_jitterdodge(), alpha=0.8) + 
+  scale_colour_manual(values=cbPalette) + 
+  theme_bw() +
+  facet_grid(new_clusters ~ Strain, scales= "free_y")+
+  theme(axis.text.x = element_blank(),
+        axis.text.y = element_text(size = 10),
+        legend.text = element_text(size = 10),
+        strip.text = element_text(face = "bold", size = 12), 
+        axis.ticks.x = element_blank(), 
+        axis.title= element_blank(), 
+        #legend.text = element_text(face = c("plain", "italic")),
+        legend.position = "bottom")
+ggsave(paste(path, "cluster_box_all.png", sep=""), width = 4, height = 10, units = "in")
+
+```
+
+### Perform two-way ANOVA to determine the effect of strain and genotype on the percent of micrglia subclusters 
+```{r}
+####single function for stain and GT interaction debugging
+
+clusters <- unique(cd11b.meta.stat$new_clusters) %>% as.list()
+
+data = cd11b.meta.stat %>% filter(new_clusters %in% clusters[[1]])
+aov_object = aov(Percent ~ Strain*Genotype , data=data)
+aov.pvals = summary(aov_object)
+aov.pvals= aov.pvals[[1]][5] %>% t() %>% as.data.frame()
+names(aov.pvals) <- c("Strain", "Genotype", "Strain_Genotype", "Residuals")
+aov.pvals <- aov.pvals %>% 
+  select(-Residuals) %>% 
+  mutate(Cluster = clusters[1] %>% as.character())
+
+aov_StrainGT <- function(cluster, data){
+  data = data %>% filter(new_clusters %in% cluster)
+  aov_object = aov(Percent ~ Strain*Genotype, data=data)
+  aov.pvals = summary(aov_object)
+  aov.pvals= aov.pvals[[1]][5] %>% t() %>% as.data.frame()
+  names(aov.pvals) <- c("Strain", "Genotype", "Strain_Genotype", "Residuals")
+  aov.pvals <- aov.pvals %>% 
+    select(-Residuals) %>% 
+    mutate(Cluster = cluster %>% as.character())
+  return(aov.pvals)
+}
+
+aov_StrainGT_object <- function(cluster, data){
+  data = data %>% filter(new_clusters %in% cluster)
+  aov_object = aov(Percent ~ Strain*Genotype, data=data)
+  return(aov_object)
+}
+
+aov_StrainGT_table <- clusters %>% map_df(aov_StrainGT, data=cd11b.meta.stat)
+aov_StrainGT_table <- aov_StrainGT_table %>% mutate_if(is.double, p.adjust)
+
+aov_StrainGT_table$Cluster[aov_StrainGT_table$Strain_Genotype<0.05]
+# [1] "H"  "6"  "7"  "12"
+
+aov_StrainGT_table$Cluster[aov_StrainGT_table$Strain<0.05]
+# [1] "6"  "7"  "9" "11" "12" 
+
+aov_StrainGT_table$Cluster[aov_StrainGT_table$Genotype<0.05]
+# [1] "6"  "7"  "H" "10" "11" "12"
+
+# keep the annova object for  
+aov_object_list <- clusters %>% map(aov_StrainGT_object, data=cd11b.meta.stat)
+names(aov_object_list) <- clusters %>% unlist()
+TukeyHSD(aov_object_list[["H"]]) %>% .$`Strain:Genotype` %>% data.frame(.,cluster="H")
+
+# to export the statistic result: 
+stat_list <- vector(mode = "list", length = length(clusters %>% unlist()))
+names(stat_list) <- clusters %>% unlist()
+for (i in clusters %>% unlist()){
+  stat_list[[i]] <-  TukeyHSD(aov_object_list[[i]]) %>% 
+    .$`Strain:Genotype` %>% 
+    data.frame(.,cluster=i) %>% 
+    rownames_to_column(var = "comparison")
+}
+
+stat_all <- do.call(rbind, stat_list)
+
+# find genetype difference within strain comparison: 
+stat_APP_cluster <- stat_all %>% 
+  filter(comparison %in% c("B6:APP/PS1-B6:WT", "CAST:APP/PS1-CAST:WT", "PWK:APP/PS1-PWK:WT", "WSB:APP/PS1-WSB:WT")) %>% 
+  mutate(Significance=ifelse(p.adj<0.05, "S", "NS"))
+write_delim(stat_APP_cluster, paste(path, "stat_GT_within_strain.txt", sep = ""), delim = "\t")
+
+# find strain difference of WT (comparing to B6 in for WT in each strain)
+stat_WT_strain_cluster <- stat_all %>% 
+  filter(str_count(comparison, "WT")==2) %>% 
+  mutate(Significance=ifelse(p.adj<0.05, "S", "NS"))
+write_delim(stat_WT_strain_cluster, paste(path, "stat_WT_between_strain.txt", sep = ""), delim = "\t") 
+
+# find strain difference of APP/PS1 (comparing to B6 in for APP/PS1 in each strain)
+stat_APP_strain_cluster <- stat_all %>% 
+  filter(str_count(comparison, "APP/PS1")==2) %>% 
+  mutate(Significance=ifelse(p.adj<0.05, "S", "NS"))
+write_delim(stat_APP_strain_cluster, paste(path, "stat_APP_between_strain.txt", sep = ""), delim = "\t") 
+
+```
+
+
+### check the statistics on nFeature, percent of mitochodria, and percent of ribosomal genes for each cluster
+```{r}
+
+## nFeature
+aov_stat = aov(Med_nFeature ~ new_clusters, data=cd11b.meta.stat)
+aov_table <- TukeyHSD(aov_stat) %>% .$new_clusters %>% data.frame() %>% rownames_to_column(var = "comparison") %>% 
+  mutate(comparison=paste(" ", comparison, sep = ""), Significance=ifelse(p.adj<0.05, "S", "NS"))
+write_delim(aov_table, path = paste(path, "Med_nFeature_comp_cluster.txt", sep = ""), delim = "\t")
+filter(aov_table, Significance=="S")
+
+## percent of mitochodria
+aov_stat = aov(Med_percent_mt ~ new_clusters, data=cd11b.meta.stat)
+aov_table <- TukeyHSD(aov_stat) %>% .$new_clusters %>% data.frame() %>% rownames_to_column(var = "comparison") %>% 
+  mutate(comparison=paste(" ", comparison, sep = ""),Significance=ifelse(p.adj<0.05, "S", "NS"))
+write_delim(aov_table, path = paste(path, "Med_percent_mt_comp_cluster.txt", sep = ""), delim = "\t")
+filter(aov_table, Significance=="S")
+
+## percent of ribosomal
+aov_stat = aov(Med_percent_ribo ~ new_clusters, data=cd11b.meta.stat)
+aov_table <- TukeyHSD(aov_stat) %>% .$new_clusters %>% data.frame() %>% rownames_to_column(var = "comparison") %>% 
+  mutate(comparison=paste(" ", comparison, sep = ""),Significance=ifelse(p.adj<0.05, "S", "NS"))
+write_delim(aov_table, path = paste(path, "Med_percent_ribo_comp_cluster.txt", sep = ""), delim = "\t")
+filter(aov_table, Significance=="S")
+
+
+```
+
+
+

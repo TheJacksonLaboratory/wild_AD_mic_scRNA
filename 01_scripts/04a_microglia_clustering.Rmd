@@ -1,0 +1,285 @@
+---
+title: "Microglia Clustering"
+output: 
+  html_document:
+    keep_md: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE)
+```
+
+```{r}
+library(tidyverse)
+library(cowplot)
+library(Seurat)
+library(patchwork)
+```
+
+## Load microglia object
+
+```{r}
+cd11b.integrated <- readRDS("../02_data/intermediate_rds/mg_int.rds") 
+
+DefaultAssay(cd11b.integrated) <- "RNA"
+cd11b.integrated@meta.data %>% group_by(Strain, Genotype) %>% summarise(N=n())
+
+cd11b.integrated$Strain <- str_replace_all(cd11b.integrated$Strain, pattern = "B6J", replacement = "B6")
+cd11b.integrated$Group <- str_replace_all(cd11b.integrated$Group, pattern = "B6J", replacement = "B6")
+cd11b.integrated$Group <- factor(cd11b.integrated$Group, levels = c("B6_WT","B6_APP/PS1","CAST_WT", "CAST_APP/PS1", 
+                                                                    "PWK_WT",  "PWK_APP/PS1", "WSB_WT", "WSB_APP/PS1"))
+sum_table <- cd11b.integrated@meta.data %>% group_by(seurat_clusters) %>% summarise(N=n(), ave_nCount_RNA=median(nCount_RNA), ave_nFeature_RNA=median(nFeature_RNA), ave_percent.mt=median(percent.mt))
+prop.table(table(Idents(cd11b.integrated), cd11b.integrated$Group), margin = 2)
+```
+
+
+
+```{r}
+Idents(cd11b.integrated) <- "seurat_clusters"
+
+path <- "../03_results/04a_microglia_clustering/"
+plot_title="mic_cluster"
+i=17 #(PCA dim) 
+j=0.6 #(resolution)
+```
+
+## UMAP plot
+
+### UMAP plot - strain/genotype combined
+
+```{r, fig.width=4, fig.height=4}
+DimPlot(cd11b.integrated, reduction = "umap", label = TRUE, pt.size = 0.001, label.size = 5) + 
+  coord_fixed()+
+  theme(axis.title = element_blank(), legend.position = "none")
+ggsave(paste(path, plot_title, "_", "umap_", i, "_res_", j, "_DimPlot_Strain_small",  ".png", sep=""), units = "in", width = 4, height = 4,  dpi=300)
+```
+
+
+## check marker genes of each cluster, list top 10 marker genes
+
+```{r}
+
+load("../03_results/01c_integration_mg/pca_res_search/int_mg_pca_17_res_0.6_markers_proptbl.rda")
+cd11b.markers %>% group_by(cluster) %>%  top_n(-10, wt=p_val_adj)
+
+```
+
+## combine homeostatic microglia
+
+```{r}
+
+cd11b.integrated$final_clusters <-  ifelse(cd11b.integrated$seurat_clusters %in% 0:5,"H",
+                                           cd11b.integrated$seurat_clusters %>% as.character())
+cd11b.integrated$final_clusters <- factor(cd11b.integrated$final_clusters, 
+                                          levels = c("H", "6", "7", "8", "9", "10", "11", "12"))
+Idents(cd11b.integrated) <- "final_clusters"
+```
+
+```{r, eval=FALSE}
+cd11b.markers_new <- FindAllMarkers(cd11b.integrated, only.pos = FALSE, min.pct = 0.2, logfc.threshold = 0.25, max.cells.per.ident=500) #max.cells.per.ident
+saveRDS(cd11b.markers_new, file = paste(path, "mg_markers_new.rds", sep=""))
+
+# get rid of ribo genes in marker genes
+ribo.genes <- grep(pattern = "^Rp[sl][[:digit:]]", x = rownames(cd11b.integrated@assays$RNA), value = TRUE)
+cd11b.markers <- filter(cd11b.markers, !gene %in% ribo.genes)
+
+```
+
+```{r}
+cd11b.markers_new <- readRDS(paste(path, "mg_markers_new.rds", sep=""))
+cd11b.markers_new <- cd11b.markers_new %>% mutate(gene=paste(" ", gene, sep = ""))
+write_delim(cd11b.markers_new, paste(path, "mg_markers_new.txt", sep = ""), delim = "\t")
+top_20 <- cd11b.markers_new %>% group_by(cluster) %>% filter(avg_logFC>0.3) %>% top_n(20, wt = avg_logFC)
+top_20
+### Marks for DAM-1, DAM-2
+### vilin plot: Cst7, Lpl, Apoe, Clec7a, Cx3cr1
+### FeaturePlot: Cst7
+
+### Marks for IRM
+### vilin plot: Ifit3, Ifitm3, Irf7
+### FeaturePlot: Ifit3
+
+### Marks for Hexb-high cells
+### vilin plot: Hexb, Cd81, Cst3
+### FeaturePlot: Hexb
+
+
+### Marks for Ribosomal-gene-enriched cells
+### vilin plot: Rplp1, Rps21, Rps24
+### FeaturePlot: Rplp1
+
+### Marks for Ccl3/Ccl4+ cells
+### vilin plot: Ccl3, Ccl4, C3ar1
+### FeaturePlot: Ccl3
+
+
+### Marks for proliferative microglia
+### vilin plot: Stmn1, Top2a, Birc5
+### FeaturePlot: Stmn1
+```
+### UMAP plot - strain/genotype splitted
+
+```{r, fig.width=6, fig.height=7}
+Idents(cd11b.integrated) <- "final_clusters"
+
+p <- DimPlot(cd11b.integrated, reduction = "umap", label = TRUE, pt.size = 1E-10, split.by = "Group", ncol = 2, label.size = 3, repel = TRUE) + 
+  coord_fixed()+
+  theme(text = element_blank(), legend.position = "none")
+ggsave(paste(path, plot_title, "_", "umap_", i, "_res_", j, "_DimPlot_Strain_split_no_text",  ".png", sep=""), p, units = "in", width = 3, height = 5.7,  dpi=300)
+
+DimPlot(cd11b.integrated, reduction = "umap", label = TRUE, pt.size = 1E-10, split.by = "Group", ncol = 2, label.size = 3, repel = TRUE) + 
+  coord_fixed()+
+  theme(title = element_text(size = 3), 
+        axis.text = element_text(size = 6),
+        legend.position = "none")
+```
+
+## Dot plot of microglia marker genes for each clusters
+
+```{r, fig.width= 6, fig.height=6}
+
+Idents(cd11b.integrated) <- "final_clusters"
+
+genes <- c("Cst7", "Lpl", "Apoe", "Clec7a", "Cx3cr1", "Tmem119", "Ifit3", "Ifitm3", "Irf7", "Hexb", "Cd81", "Cst3", "Rplp1", "Rps21", "Rps24", "Ccl4", "Ccl3", "C3ar1", "Stmn1", "Top2a", "Birc5")
+
+file_name <- paste(path, "Dotplot_all_gene_H_combine.png", sep = "")
+DotPlot(cd11b.integrated, features = genes) + RotatedAxis() + 
+  theme(axis.title = element_blank()) + 
+  scale_y_discrete(labels = function(x) str_wrap(x, width = 20)) + 
+  coord_flip() + 
+  theme(axis.text.y = element_text(face = "bold.italic"))
+ggsave(file_name ,units = "in", width = 5.5, height = 5.5, dpi=300)
+
+```
+
+## Feature plots of marker genes of microglia subclusters
+```{r, fig.width=10, fig.height=7}
+
+genes <- c("Hexb", "Cst7", "Ifitm3", "Rplp1", "Ccl4", "Stmn1")
+
+# # plot one gene
+# FeaturePlot(cd11b.integrated, features = c("Tmem119"), min.cutoff = "q9",label=TRUE, repel = FALSE, ncol = 2, order = TRUE) + 
+#   coord_fixed() +
+#   theme(axis.line = element_blank(), 
+#         axis.title = element_blank(),
+#         axis.text = element_blank(),
+#         axis.ticks = element_blank())
+
+p <- genes %>% 
+  map(~FeaturePlot(cd11b.integrated, features = ., min.cutoff = "q9",label=TRUE, repel = FALSE, ncol = 2, order = TRUE) + 
+        coord_fixed() +
+        theme(axis.line = element_blank(), 
+              axis.title = element_blank(),
+              axis.text = element_blank(),
+              axis.ticks = element_blank())
+  )
+
+(p[[1]]+p[[2]]+p[[3]])/(p[[4]]+p[[5]]+p[[6]])
+ggsave(paste(path, "Feature_plot_all.png", sep=""), units = "in", width = 10, height = 7,  dpi=300)
+
+
+```
+
+## Check immediate early  genes (IEG)
+
+#### To verify that our microglia prepared by mechniacal dissociation at 4 °C were not globally ex vivo activated
+
+### Feature plots for IEG
+```{r}
+
+genes <- c("Fos", "Fosb", "Dusp1", "Nr4a1", "Arc", "Egr1")
+
+# FeaturePlot(cd11b.integrated, features = c("Egr1"), split.by = "Genotype", min.cutoff = "q9",label=TRUE, repel = TRUE, ncol = 2, order=TRUE) # + coord_fixed()
+
+p <- genes %>% 
+  map(~FeaturePlot(cd11b.integrated, features = ., min.cutoff = "q9",label=TRUE, repel = TRUE, ncol = 2, order=FALSE) + 
+        coord_fixed()+
+        theme(axis.line = element_blank(), 
+              axis.title = element_blank(),
+              axis.text = element_blank(),
+              axis.ticks = element_blank()
+        )
+  )
+
+(p[[1]]+p[[2]]+p[[3]])/(p[[4]]+p[[5]]+p[[6]])
+ggsave(paste(path, "Feature_plot_all_unordered.png", sep=""), units = "in", width = 10, height = 7,  dpi=300)
+
+```
+
+### Dot plot for IEG
+```{r, fig.width=6.1, fig.height=3.4}
+DotPlot(cd11b.integrated, features = genes) + RotatedAxis() + 
+  theme(axis.title = element_blank(),
+        axis.text.y = element_text(face = "bold.italic")) + 
+  scale_y_discrete(labels = function(x) str_wrap(x, width = 20)) + 
+  coord_flip() 
+ggsave(paste(path, "Dotplot_IEG.png", sep = ""),units = "in", width = 6.1, height = 3.4, dpi=300)
+
+```
+
+## Deeper dive into homeostatic microglia subclusters
+
+### Dot plot showing other activated microlgia marker genes (cluster 6-12) in homeostatic microglia subclusters are not quite different
+
+```{r, fig.width=6.1, fig.height=5.5}
+Idents(cd11b.integrated) <- "seurat_clusters"
+
+genes <- c("Cst7", "Lpl", "Apoe", "Clec7a", "Cx3cr1", "Tmem119", "Ifit3", "Ifitm3", "Irf7", "Hexb", "Cd81", "Cst3", "Rplp1", "Rps21", "Rps24", "Ccl4", "Ccl3", "C3ar1", "Stmn1", "Top2a", "Birc5")
+
+DotPlot(cd11b.integrated %>% subset(idents = c(0:5, 8)), features = genes) + RotatedAxis() + 
+  theme(axis.title = element_blank(),
+        axis.text.y = element_text(face = "bold.italic")) + 
+  scale_y_discrete(labels = function(x) str_wrap(x, width = 20)) + 
+  coord_flip() 
+ggsave(paste(path, "Dotplot_all_gene_homeo.png", sep = "") ,units = "in", width = 6.1, height = 5.5, dpi=300)
+paste(path, "Dotplot_all_gene_homeo.png", sep = "")
+
+### Marks for homeostatic sub microlgia: 
+#0 Rpl15-ps2
+#1 P2ry12, Sfi1, Rps18-ps3
+#2 Malat1, Macf1, Xist, Abca9, Tmem72
+#3 Rpl15-ps3, Crybb1, Rpl37rt
+#4 Rpl12, Rpl23a
+#5 Ifngr1, Txnip, Glul
+#8 C1qa, C1qb, Lgmn
+```
+
+### Dot plot showing top marker genes in homeostatic microglia subclusters are mostly ribosomal genes or pseudogenes
+
+```{r, fig.width=6.1, fig.height=5.5}
+genes_homeo <- c("Rpl15-ps2","P2ry12", "Sfi1", "Rps18-ps3", "Malat1", "Macf1", "Xist", "Abca9", "Tmem72",
+           "Rpl15-ps3", "Crybb1", "Rpl37rt", "Rpl12", "Rpl23a", "Ifngr1", "Txnip", "Glul", 
+           "C1qa", "C1qb", "Lgmn", "Itm2b")
+                                                        
+DotPlot(cd11b.integrated %>% subset(idents = c(0:5, 8)), features = genes_homeo) + RotatedAxis() + 
+  theme(axis.title = element_blank(),
+        axis.text.y = element_text(face = "bold.italic")) + 
+  scale_y_discrete(labels = function(x) str_wrap(x, width = 20)) + 
+  coord_flip() 
+ggsave(paste(path, "Dotplot_all_gene_homeo2.png") ,units = "in", width = 6.1, height = 5.5, dpi=300)
+```
+
+## Check the gene number, percent of ribosomal genes and percent of mitochodrial genes in each cluster
+
+```{r, fig.width=4.5, fig.height=4}
+
+QC_plot_single2 <-function(data, y){
+  p <- ggplot(data, aes_string(x="final_clusters", y=y, color= "final_clusters")) +
+    geom_violin() +
+    geom_boxplot(width=0.07, outlier.shape = NA, color = "black", alpha=0.7) +
+    theme_bw()+
+    theme(legend.position = "none", axis.title.x = element_blank(), axis.ticks = element_blank())
+  return(p)
+}
+
+p_QC <- c("nFeature_RNA", "percent.mt", "percent.ribo") %>% map(~QC_plot_single2(cd11b.integrated@meta.data, .))
+
+p <- plot_grid(plotlist=p_QC, nrow=3, ncol = 1, align="hv")
+plot_grid(p, nrow=1, rel_heights=c(0.1, 1))
+ggsave(paste(path, "all_microglia_integrated2.png", sep=""), units = "in", width = 4.5, height = 3.5,  dpi=300)
+
+```
+
+
+
+

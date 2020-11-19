@@ -1,6 +1,7 @@
+# To get the venn diagram intersects compatible with gplots
 
 library(gplots)
-# To get the venn diagram intersects
+
 venn_intersects <- function(x_list){
   #input: 
   #x_list: list to be intersected, the names of the list is pre-defined
