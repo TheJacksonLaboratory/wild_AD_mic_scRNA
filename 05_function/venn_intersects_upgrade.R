@@ -6,7 +6,7 @@ library(tidyverse)
 venn_intersects_upgrade <- function(x_list){
   tmp <- Venn(x_list)
   intersect_name <- tmp@IndicatorWeight %>% rownames()
-  Weight <- tmp@IndicatorWeight %>% as.tibble()
+  Weight <- tmp@IndicatorWeight %>% as_tibble()
   names(Weight) <- str_remove(names(Weight), "\\.")
   Weight$intersect_name <- intersect_name
   Set_name_weight <- Weight %>% filter(Weight!=0) %>% select(Weight, intersect_name) # extract the the intersection terms with "non-zero" elements

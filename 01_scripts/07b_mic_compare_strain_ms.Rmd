@@ -1,0 +1,826 @@
+---
+title: 'Comparing cluster marker genes across strains with reported microglia state: DAM (cluster
+  6 and 12), IRM, and cluster10'
+output: 
+  html_document:
+    keep_md: true
+---
+
+```{r global_options}
+knitr::opts_chunk$set(warning=FALSE, message=FALSE)
+```
+
+
+```{r}
+library(tidyverse)
+library(UpSetR)
+library(Seurat)
+library(cowplot)
+library(Vennerable)
+library(extrafont)
+#font_import()
+
+```
+
+### set up marker gene sets for each cluster
+```{r}
+
+output_path <- "../03_results/07b_mic_compare_strain_ms/"
+file_names <- c("DE_6_vs_H.txt", "DE_7_vs_H.txt", "DE_8_vs_H.txt", "DE_10_vs_H.txt", "DE_12_vs_H.txt")
+file_dir <- file.path("../03_results/05b_makers_vs_Homeos/", file_names)
+cluster_name <- c("DAM1", "IRM", "Cluster8", "Cluster10", "DAM2")
+
+strain=c("B6", "CAST", "PWK", "WSB")
+
+#load the DE gene data sets for all clusters
+df <- file_dir %>% map(read_delim, delim = "\t")
+names(df) <- cluster_name
+
+## check the DAM1 DE genes from all strains (combined table from all strains)
+for(i in seq_along(strain)){
+  a <- df[["DAM1"]] %>% select(Symbol, contains(strain[i])) %>% 
+    filter(str_detect(Symbol, "^Gm", negate = TRUE)) %>% 
+    filter_at(vars(contains("p_val_adj")), any_vars(-log10(.)>25)) %>% 
+    filter_at(vars(contains("logFC")), any_vars(.>0.25))
+  print(dim(a))
+}
+
+```
+
+### wrap into a function to retrieve DE gene sets 
+```{r}
+
+cluster_DE <- function(logFDR_cut, logFC_cut, df){
+  # input:
+  # logFDR_cut, threthold of -log10FDR
+  # logFC_cut, threthold of log2FC
+  # df: DE gene table for each cluster
+  # output: 
+  # a list containing marker genes for a given cluster for all strains 
+  # strain: global environment
+  DE_list <- vector(mode = "list", length = length(strain))
+  
+  if(logFC_cut>0){
+    for(i in seq_along(strain)){
+    DE_list[[i]] <- df %>% select(Symbol, contains(strain[i])) %>% 
+      filter(str_detect(Symbol, "^Gm", negate = TRUE)) %>% 
+      filter_at(vars(contains("p_val_adj")), any_vars(-log10(.)>logFDR_cut)) %>% 
+      filter_at(vars(contains("logFC")), any_vars(.>logFC_cut)) %>% 
+      select(Symbol) %>% unlist()
+    }
+  }else{
+    for(i in seq_along(strain)){
+    DE_list[[i]] <- df %>% select(Symbol, contains(strain[i])) %>% 
+      filter(str_detect(Symbol, "^Gm", negate = TRUE)) %>% 
+      filter_at(vars(contains("p_val_adj")), any_vars(-log10(.)>logFDR_cut)) %>% 
+      filter_at(vars(contains("logFC")), any_vars(.<logFC_cut)) %>% 
+      select(Symbol) %>% unlist()
+    }
+  }
+  
+  names(DE_list) <- strain
+  return(DE_list)
+}
+
+
+```
+
+
+
+
+```{r}
+# to retrieve marker gene for each cluster across strains, can use the following expression.
+DE_DAM6_list <- cluster_DE(18, 0.25, df[["DAM1"]])
+    DE_DAM6_list %>% map_df(length)
+    
+DE_IRM_list <- cluster_DE(8, 0.25, df[["IRM"]])
+    DE_IRM_list %>% map_df(length)
+    
+DE_DAM12_list <- cluster_DE(18, 0.25, df[["DAM2"]])
+    DE_DAM12_list %>% map_df(length)
+    
+DE_cl10_list <- cluster_DE(8, 0.25, df[["Cluster10"]])
+    DE_cl10_list  %>% map_df(length)
+
+```
+
+
+
+### Marker gene sets from other studies
+##### set up marker gene sets for comparison (DAM: Amit, ARM: Strooper, IRM: Strooper, Aging_OA2: Steven, Aging_OA3: Steven)
+1. Amits DAM genes (and Homeostatic microglia genes: negative DAM markers)
+```{r}
+
+sig_levels <- c(18, 0.25)   
+# logFDR_cut, threthold of -log10FDR # logFC_cut, threthold of log2FC
+
+df_comp <- readxl::read_xlsx("../02_data/mic_comp_Amit/Amit_HvsDAM.xlsx", col_types=c("text", rep("numeric",4)))
+names(df_comp) <- c("Symbol", "UMI_H", "log2FC", "log10p", "log10FDR")
+df_comp <- mutate(df_comp, 
+                      p_val=10^(-log10p), 
+                      p_val_adj=10^(-log10FDR))
+    ## DAM markers of all strains
+df_DAM <- df_comp %>% 
+  filter(log10FDR>sig_levels[1], log2FC>sig_levels[2], str_detect(Symbol, "^Gm", negate = TRUE)) %>% 
+  arrange(desc(log10FDR)) ## top 58 genes
+df_DAM
+gene_DAM <- df_DAM$Symbol %>% unlist()
+
+
+```
+
+2. Strooper ARM genes (and Homeostatic microglia genes: negative ARM markers)
+```{r}
+#ARM
+sig_levels <- c(6, 0.25)
+df_comp <- read_delim("../03_results/06a_mic_Strooper/Seurat_Strooper_markers.txt", delim = "\t")
+df_comp <- df_comp %>% 
+  filter(cluster==2) %>%  # ARM cluster 2
+  filter(-log10(p_val_adj)>sig_levels[1], avg_logFC>sig_levels[2], str_detect(symbol, "^Gm", negate = TRUE)) %>% 
+  arrange(desc(-log10(p_val_adj)))## top 59 genes
+gene_ARM <- df_comp$gene %>% unlist()
+df_comp
+
+
+```
+
+
+3. Strooper IRM genes
+```{r}
+sig_levels <- c(6, 0.25)
+df_comp <- read_delim("../03_results/06a_mic_Strooper/Seurat_Strooper_markers.txt", delim = "\t")
+df_comp <- df_comp %>% 
+  filter(cluster==7) %>%  # IRM cluster 7
+  filter(-log10(p_val_adj)>sig_levels[1], avg_logFC>sig_levels[2], str_detect(symbol, "^Gm", negate = TRUE)) %>% 
+  arrange(desc(-log10(p_val_adj)))## top 53 genes
+gene_IRM <- df_comp$gene %>% unlist()
+df_comp
+
+```
+
+4. Stevens Ag_OA2 (aging related)
+```{r}
+# data loading copied from "mic_comp_addmodule"
+input_file <- "../02_data/mic_comp_Stevens/Stevens_cluster_marker.xlsx"
+M_stevens_sheet_name <- readxl::excel_sheets(input_file)
+sheet <- 1:(length(M_stevens_sheet_name)-1) # do not include the last Transcription factors
+df_comp <- vector(mode = "list", length = length(sheet))
+
+for(i in sheet){
+  df_comp[[i]] <- readxl::read_xlsx(input_file, sheet = i, skip = 2)
+  df_comp[[i]] <- df_comp[[i]] %>% 
+    select(1:6)%>% 
+    mutate(cluster=M_stevens_sheet_name[i]) 
+}
+
+df_comp <- do.call(rbind, df_comp)
+
+colnames(df_comp) <- c("gene", "FC", "p_val", "p_val_adj", "pct_1", "pct_2", "cluster")
+
+df_comp <- df_comp %>% mutate(cluster=str_remove_all(cluster, "Cluster|\\(|\\)| "), 
+                              p_val=as.double(p_val),
+                              p_val_adj=as.double(p_val_adj))
+
+sig_levels <- c(18, 0.25)
+gene_OA2 <- df_comp %>% 
+    filter(cluster=="AgingOA2", -log10(p_val_adj)>sig_levels[1], log2(FC)>sig_levels[2], str_detect(gene, "^Gm", negate = TRUE)) %>% 
+    arrange(p_val_adj, desc(FC)) %>% head(50) %>% .$gene %>% unlist() 
+
+gene_OA2
+
+```
+
+5. Stevens Ag_OA3 (IRM similar)
+```{r}
+sig_levels <- c(0.05, 0.25)
+gene_OA3 <- df_comp %>% 
+    filter(cluster=="AgingOA3", -log10(p_val_adj)>sig_levels[1], log2(FC)>sig_levels[2], str_detect(gene, "^Gm", negate = TRUE)) %>% 
+    arrange(p_val_adj, desc(FC)) %>% .$gene %>% unlist() # 31
+
+gene_OA3
+
+```
+
+
+## Upset plot 1: DAM6 overlapping with Amit DAM & Strooper ARM
+```{r}
+
+comp <- "DAM6_Amit_Strooper"
+DE_cluster_list <- DE_DAM6_list
+
+DE_cluster_list[["Amit"]] <- gene_DAM
+DE_cluster_list[["de Strooper"]] <- gene_ARM 
+
+file_name <- paste(output_path, "upset_", comp, ".png", sep = "")
+
+x <- upset(fromList(DE_cluster_list), 
+      nsets = length(DE_cluster_list), 
+      sets = names(DE_cluster_list),
+      queries = list(list(query = intersects, params = list(names(DE_cluster_list)), color = "orange", active = TRUE),
+                     list(query = intersects, params = list(names(DE_cluster_list)[-5:-6]), color = "grey", active = TRUE)),
+      order.by = "freq",
+      keep.order = TRUE,
+      sets.bar.color = "blue", text.scale=1.5)
+x
+
+png(filename = file_name, width = 8, height = 4.5, units = "in", res = 300)
+x
+dev.off()
+
+```
+
+### Export intersecting DAM6 gene list: 
+```{r}
+### Upset plot 1: DAM6 overlapping with Amit DAM & Strooper ARM
+
+## Because this upset has 6 lists, so venn() function in gplots package doesn't work. use Vennerable for up to 9 sets
+
+#library(devtools)
+#install_github("js229/Vennerable")
+library(Vennerable)
+
+
+tmp <- Venn(DE_cluster_list)
+# view elements:
+tmp@IntersectionSets$`111111` ## all overlap
+tmp@IntersectionSets$`111100` ## B6,CAST,PWK,WSB overlap, but not in Strooper/Amit
+tmp@IntersectionSets$`010011` ## Strooper&Amit, & CAST 
+tmp@IntersectionSets$`110011` ## Strooper&Amit, & CAST&B6
+tmp@IntersectionSets$`100011` ## Strooper&Amit, & B6
+tmp@IntersectionSets$`100111` ## Strooper&Amit, & B6 & WSB
+tmp@IntersectionSets$`110111` ## Strooper&Amit, & B6 & WSB & CAST
+tmp@IntersectionSets$`101111` ## Strooper&Amit, & B6 & WSB & PWK
+tmp@IntersectionSets$`101011` ## Strooper&Amit, & B6 & PWK
+tmp@IntersectionSets$`111011` ## Strooper&Amit, & B6 & PWK & CAST
+
+# save core DAM6 genes for score evaluation 
+core_DAM6 <- tmp@IntersectionSets$`111111` 
+# upset_DAM1 <- tmp
+#write_delim(DE_cluster_intersect, paste(output_path, "upset_", comp, "_intersect.txt", sep = ""), delim = "\t")
+
+
+```
+
+
+### load seurat object to add module scores based on core genes of DAM 6 
+```{r}
+cd11b.integrated <- readRDS("../02_data/intermediate_rds/mg_int.rds") 
+
+## combine homeostatic microglia
+cd11b.integrated$final_clusters <-  ifelse(cd11b.integrated$seurat_clusters %in% 0:5,"H",
+                                           cd11b.integrated$seurat_clusters %>% as.character())
+cd11b.integrated$final_clusters <- factor(cd11b.integrated$final_clusters, 
+                                          levels = c("H", "6", "7", "8", "9", "10", "11", "12"))
+cd11b.integrated$Genotype <- factor(cd11b.integrated$Genotype, levels = c("WT", "APP/PS1"))
+
+cd11b.integrated$Strain <- gsub("B6J", "B6", cd11b.integrated$Strain)
+cd11b.integrated$Strain <- factor(cd11b.integrated$Strain, levels = c("B6", "CAST", "PWK", "WSB"))
+
+cd11b.integrated$Group <- gsub("B6J", "B6", cd11b.integrated$Group)
+
+cd11b.integrated$Group <- factor(cd11b.integrated$Group, 
+                                 levels=c("B6_WT", "B6_APP/PS1", "CAST_WT", "CAST_APP/PS1", "PWK_WT","PWK_APP/PS1", "WSB_WT", "WSB_APP/PS1"))
+
+```
+
+
+### add module score for all core clusters (DAM/ARM, IRM/Aging_OA3, Aging_OA2)
+```{r}
+cd11b.integrated <- AddModuleScore(object = cd11b.integrated, features = list(core_DAM6), ctrl = 100, name = 'core_DAM6') 
+
+
+```
+
+
+#### plot
+```{r, fig.width=2.5, fig.height=5}
+meta <- cd11b.integrated@meta.data
+
+clusters <- levels(meta$final_clusters) %>% as.list()
+
+cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7") # color blind friendly Palette (grey)
+
+```
+
+### List examples of marker genes of all kinds splits by strain and genotype
+
+### DAM 
+```{r, fig.width=9.6, fig.height=3.3}
+
+genes <- c("Cst7", "Clec7a", "Cd9", "Lpl", "Apoe","Cadm1", "Ctsa", "Trem2", "Cd68", "Ctsl", "Capg", "Serpine2")
+
+library(extrafont)
+#font_import()
+
+Idents(cd11b.integrated) <- "Strain"
+p <- genes %>% 
+  map(~VlnPlot(cd11b.integrated %>% subset(subset=final_clusters %in% c("6")), features = ., pt.size = 0, split.by = "Genotype", ncol = 4, cols =  c("#E69F00", "#999999")) + 
+        theme(legend.position = "none", 
+              axis.title = element_blank(), 
+              axis.text.x = element_text(size = 8),
+              axis.text.y = element_text(size = 10), 
+              title = element_text(size = 10, family = "Arial")
+              )) 
+
+plot_grid(p[[1]], p[[2]], p[[3]], p[[4]], p[[5]], p[[6]], p[[7]], p[[8]], p[[9]], p[[10]], p[[11]], p[[12]], align = c("hv"), nrow =2, ncol = 6)
+
+ggsave(paste(output_path, "Vln_gene_", comp, ".png", sep = ""), dpi = 300, width = 9.6, height = 3.3)
+
+# just plot a gene figure with the legend
+x <- VlnPlot(cd11b.integrated %>% subset(subset=final_clusters %in% c("6")), features = "Lpl", pt.size = 0, split.by = "Genotype", ncol = 4, cols =  c("#E69F00", "#999999"))
+
+ggsave(paste(output_path, "Vln_lpl_", comp, ".png", sep = ""), x, dpi = 300, width = 8, height = 3.3)
+
+```
+
+
+## Upset plot 1.1 : Cluster12 overlapping with Amit and de Strooper
+```{r, fig.width=8, fig.height=4.5}
+comp <- "DAM12_Amit_Strooper"
+DE_cluster_list <- DE_DAM12_list
+
+DE_cluster_list[["Amit"]] <- gene_DAM
+DE_cluster_list[["de Strooper"]] <- gene_ARM 
+
+file_name <- paste(output_path, "upset_", comp, ".png", sep = "")
+
+x <- upset(fromList(DE_cluster_list), 
+      nsets = length(DE_cluster_list), 
+      sets = names(DE_cluster_list),
+      queries = list(list(query = intersects, params = list(names(DE_cluster_list)), color = "orange", active = TRUE),
+                     list(query = intersects, params = list(names(DE_cluster_list)[-5:-6]), color = "grey", active = TRUE)),
+      order.by = "freq",
+      keep.order = TRUE,
+      sets.bar.color = "blue", text.scale=1.5)
+x
+
+png(filename = file_name, width = 8, height = 4.5, units = "in", res = 300)
+x
+dev.off()
+
+```
+
+### Export intersecting DAM12 gene list: 
+```{r}
+library(Vennerable)
+
+tmp <- Venn(DE_cluster_list)
+# view elements:
+tmp@IntersectionSets$`111111` ## all overlap
+tmp@IntersectionSets$`111100` ## B6,CAST,PWK,WSB overlap, but not in de Strooper/Amit
+tmp@IntersectionSets$`000011` ## Not in B6,CAST,PWK,WSB overlap, but in de Strooper/Amit
+tmp@IntersectionSets$`110111` ## Strooper&Amit, & B6 & WSB & CAST
+tmp@IntersectionSets$`110011` ## Strooper&Amit, & CAST & B6
+
+tmp@IntersectionSets$`001011` ## Strooper&Amit, & PWK
+tmp@IntersectionSets$`010011` ## Strooper&Amit, & CAST
+tmp@IntersectionSets$`110011` ## Strooper&Amit, & CAST&B6
+tmp@IntersectionSets$`011111` ## Strooper&Amit, & CAST & PWK & WSB
+tmp@IntersectionSets$`101111` ## Strooper&Amit, & B6 & PWK & WSB
+tmp@IntersectionSets$`111011` ## Strooper&Amit, & B6 & PWK & CAST
+
+
+# save core DAM6 genes for score evaluation 
+core_DAM12 <- tmp@IntersectionSets$`111111` 
+# upset_DAM1 <- tmp
+#write_delim(DE_cluster_intersect, paste(output_path, "upset_", comp, "_intersect.txt", sep = ""), delim = "\t")
+```
+### add module score for all core genes of cluster 12
+```{r}
+cd11b.integrated <- AddModuleScore(object = cd11b.integrated, features = list(core_DAM12), ctrl = 100, name = 'core_DAM12') 
+
+
+```
+
+
+
+### List examples of marker genes of all kinds splits by strain and genotype
+### DAM12
+```{r, fig.width=9.6, fig.height=3.3}
+
+genes <- c("Tyrobp", "Cst7", "Clec7a", "Ccl6", "B2m", "Ctsd", "Ccl3", "Lpl", "Trem2", "Axl", "Cd9", "Apoe")
+
+library(extrafont)
+#font_import()
+
+Idents(cd11b.integrated) <- "Strain"
+p <- genes %>% 
+  map(~VlnPlot(cd11b.integrated %>% subset(subset=final_clusters %in% c("12")), features = ., pt.size = 0, split.by = "Genotype", ncol = 4, cols =  c("#E69F00", "#999999")) + 
+        theme(legend.position = "none", 
+              axis.title = element_blank(), 
+              axis.text.x = element_text(size = 8),
+              axis.text.y = element_text(size = 10), 
+              title = element_text(size = 10, family = "Arial")
+              )) 
+
+plot_grid(p[[1]], p[[2]], p[[3]], p[[4]], p[[5]], p[[6]], p[[7]], p[[8]], p[[9]], p[[10]], p[[11]], p[[12]], align = c("hv"), nrow =2, ncol = 6)
+
+ggsave(paste(output_path, "Vln_gene_", comp, ".png", sep = ""), dpi = 300, width = 9.6, height = 3.3)
+
+```
+
+
+
+## Upset plot 2: IRM7 overlapping with Strooper IRM & Stevens Aging_OA3
+```{r}
+comp <- "IRM7_Strooper_Stevens"
+DE_cluster_list <- DE_IRM_list
+
+DE_cluster_list[["de Strooper"]] <- gene_IRM
+DE_cluster_list[["Stevens"]] <- gene_OA3
+
+file_name <- paste(output_path, "upset_", comp, ".png", sep = "")
+
+x <- upset(fromList(DE_cluster_list), 
+      nsets = length(DE_cluster_list), 
+      sets = names(DE_cluster_list),
+      queries = list(list(query = intersects, params = list(names(DE_cluster_list)), color = "orange", active = TRUE)),
+      order.by = "freq",
+      keep.order = TRUE,
+      sets.bar.color = "blue", text.scale=1.5)
+x
+
+png(filename = file_name, width = 8, height = 4.5, units = "in", res = 300)
+x
+dev.off()
+
+
+```
+
+### Export intersecting IRM7 gene list: 
+```{r}
+
+tmp <- Venn(DE_cluster_list)
+# view elements:
+tmp@IntersectionSets$`111111` ## all overlap
+tmp@IntersectionSets$`111110` ## B6,CAST,PWK,WSB overlap with Strooper but not Stevens
+tmp@IntersectionSets$`111101` ## B6,CAST,PWK,WSB overlap with Strooper but not Stevens
+
+tmp@IntersectionSets$`000111` ## Strooper/Stevens marker, WSB only
+tmp@IntersectionSets$`100111` ## Strooper/Stevens marker, WSB & B6
+tmp@IntersectionSets$`011011` ## Strooper/Stevens marker, PWK & CAST
+tmp@IntersectionSets$`101111` ## Strooper/Stevens marker, WSB & B6 & PWK, not CAST
+tmp@IntersectionSets$`111011` ## Strooper/Stevens marker, CAST & B6 & PWK, not WSB
+tmp@IntersectionSets$`110111` ## Strooper/Stevens marker, WSB & B6 & CAST, not PWK
+
+# save core IRM7 genes for score evaluation 
+core_IRM7 <- tmp@IntersectionSets$`111111` 
+
+```
+
+### add module score for core markers IRM/Aging_OA3
+```{r}
+cd11b.integrated <- AddModuleScore(object = cd11b.integrated, features = list(core_IRM7), ctrl = 100, name = 'core_IRM7') 
+```
+
+
+### List examples of marker genes of all kinds splits by strain and genotype
+
+### IRM 
+```{r, fig.width=9.6, fig.height=3.3}
+
+genes <- c("Rtp4", "Ifit3", "Ifitm3", "Irf7", "Bst2", "Oasl2", "Trim30a", "Stat1", "Oas1a", "Ccl12", "Tor3a", "Ifi204")
+
+#library(extrafont)
+#font_import()
+
+Idents(cd11b.integrated) <- "Strain"
+p <- genes %>% 
+  map(~VlnPlot(cd11b.integrated %>% subset(subset=final_clusters %in% c("7")), features = ., pt.size = 0, split.by = "Genotype", ncol = 4, cols =  c("#E69F00", "#999999")) + 
+        theme(legend.position = "none", 
+              axis.title = element_blank(), 
+              axis.text.x = element_text(size = 8),
+              axis.text.y = element_text(size = 10), 
+              title = element_text(size = 10, family = "Arial")
+              )) 
+
+plot_grid(p[[1]], p[[2]], p[[3]], p[[4]], p[[5]], p[[6]], p[[7]], p[[8]], p[[9]], p[[10]], p[[11]], p[[12]], align = ("hv"), nrow =2, ncol = 6)
+
+ggsave(paste(output_path, "Vln_gene_", comp, ".png", sep = ""), dpi = 300, width = 9.6, height = 3.3)
+
+```
+
+
+## Upset plot 3: cluster10 overlapping with Stevens Aging_OA2
+```{r}
+comp <- "cl10_Stevens_OA2"
+DE_cluster_list <- DE_cl10_list
+
+DE_cluster_list[["Stevens"]] <- gene_OA2
+
+file_name <- paste(output_path, "upset_", comp, ".png", sep = "")
+
+x <- upset(fromList(DE_cluster_list), 
+      nsets = length(DE_cluster_list), 
+      sets = names(DE_cluster_list),
+      queries = list(list(query = intersects, params = list(names(DE_cluster_list)), color = "orange", active = TRUE)),
+      order.by = "freq",
+      keep.order = TRUE,
+      sets.bar.color = "blue", text.scale=1.5)
+x
+
+png(filename = file_name, width = 8, height = 4.5, units = "in", res = 300)
+x
+dev.off()
+
+
+```
+
+### Export intersecting cluster10 gene list: 
+```{r}
+
+tmp <- Venn(DE_cluster_list)
+# view elements:
+tmp@IntersectionSets$`11111` ## all overlap
+tmp@IntersectionSets$`11110` ## B6,CAST,PWK,WSB overlap, but not in Stevens
+
+tmp@IntersectionSets$`00001` ## Not in B6,CAST,PWK,WSB overlap, but in Stevens
+
+tmp@IntersectionSets$`10001` ## Stevens, & B6
+tmp@IntersectionSets$`11101` ## Stevens, & B6 & PWK & CAST
+
+tmp@IntersectionSets$`00101` ## Stevens, & PWK
+
+tmp@IntersectionSets$`01001` ## Stevens, & CAST
+tmp@IntersectionSets$`01101` ## Stevens, & CAST & PWK
+
+tmp@IntersectionSets$`01011` ## Stevens, & CAST & WSB
+tmp@IntersectionSets$`10111` ## Stevens, & B6 & PWK & WSB
+
+
+# save core DAM6 genes for score evaluation 
+core_cluster10 <- tmp@IntersectionSets$`11111` 
+
+```
+
+### add module score for core markers cluster 10/ Aging_OA2
+```{r}
+cd11b.integrated <- AddModuleScore(object = cd11b.integrated, features = list(core_cluster10), ctrl = 100, name = 'core_cluster10') 
+```
+
+
+
+### Cluster 10 gene violin plots in each strain and genotype
+```{r, fig.width=9.6, fig.height=3.3}
+
+genes <- c("Ccl3", "Ccl4", "Cd83", "C3ar1", "Atf3", "Lpl", "Lgals3", "Cd68", "Tlr2", "C5ar1", "Prdx1", "Lyz2")
+
+#library(extrafont)
+#font_import()
+
+Idents(cd11b.integrated) <- "Strain"
+p <- genes %>% 
+  map(~VlnPlot(cd11b.integrated %>% subset(subset=final_clusters %in% c("10")), features = ., pt.size = 0, split.by = "Genotype", ncol = 4, cols =  c("#E69F00", "#999999")) + 
+        theme(legend.position = "none", 
+              axis.title = element_blank(), 
+              axis.text.x = element_text(size = 8),
+              axis.text.y = element_text(size = 10), 
+              title = element_text(size = 10, family = "Arial")
+              )) 
+
+plot_grid(p[[1]], p[[2]], p[[3]], p[[4]], p[[5]], p[[6]], p[[7]], p[[8]], p[[9]], p[[10]], p[[11]], p[[12]], align = ("hv"), nrow =2, ncol = 6)
+
+ggsave(paste(output_path, "Vln_gene_", comp, ".png", sep = ""), dpi = 300, width = 9.6, height = 3.3)
+
+```
+
+#### Homeostatic microglia expression
+
+Homoestatic marker paper: 
+Amit, Stooper, Stevens.
+Christoph glass: https://science.sciencemag.org/content/early/2017/05/24/science.aal3222?versioned=true
+Oleg : https://www.nature.com/articles/s41583-018-0057-5
+
+```{r}
+gene_homeo <- c("Tmem119", "Cx3cr1", "P2ry12", "P2ry13", "Hexb", "Olfml3",  "Selplg", "Siglech", "Csf1r", "Cst3", "Sparc", "C1qa", "C1qb", "C1qc", "Tmsb4x", "Sall1", "Fcrls", "Gpr34", "Spi1",  "Mafb", "Maf", "Mef2a", "Irf8")
+
+```
+
+```{r}
+cd11b.integrated <- AddModuleScore(object = cd11b.integrated, features = list(gene_homeo), ctrl = 100, name = 'homeo') 
+```
+
+```{r , fig.width= 3, fig.height=6}
+meta <- cd11b.integrated@meta.data
+saveRDS(meta, paste(output_path, "meta_mouse_strain_score.rds", sep = ""))
+
+```
+
+
+### homeostatic microglia markers
+```{r, fig.width=6.4, fig.height=5}
+
+genes <- c("Tmem119", "Cx3cr1", "P2ry12", "Sall1", "Gpr34", "Spi1",  "Mafb", "Maf", "Mef2a", "Irf8",  "Fcrls", "Olfml3")
+
+
+Idents(cd11b.integrated) <- "Strain"
+p <- genes %>% 
+  map(~VlnPlot(cd11b.integrated %>% subset(subset=final_clusters %in% c("H")), features = ., pt.size = 0, split.by = "Genotype", ncol = 4, cols =  c("#E69F00", "#999999")) + 
+        theme(legend.position = "none", 
+              axis.title = element_blank(), 
+              axis.text.x = element_text(size = 8),
+              axis.text.y = element_text(size = 10), 
+              title = element_text(size = 10, family = "Arial")
+              )) 
+
+plot_grid(p[[1]], p[[2]], p[[3]], p[[4]], p[[5]], p[[6]], p[[7]], p[[8]], p[[9]], p[[10]], 
+          p[[11]], p[[12]],
+          align = ("hv"), nrow =3, ncol = 4)
+# width = 8, height = 3.3 2x5
+
+ggsave(paste(output_path, "Vln_gene_", comp, ".png", sep = ""), dpi = 300, width = 6.4, height = 5)
+
+```
+
+## z-score plotting using split violin and grouped by cluster
+```{r ,fig.width= 3, fig.height=6}
+# can run this chunck without runing previous chuncks
+library(tidyverse)
+
+meta <- readRDS(paste(output_path, "meta_mouse_strain_score.rds", sep = ""))
+source("~/code/wild_AD_mic_scRNA/05_function/split_ViolinBox_plot.R")
+
+cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7") # color blind friendly Palette (grey)
+
+## plot Homoestatic microglia z-score
+comp <- "homeo1"
+cluster <- c("H", "8", "6")
+strain <- c("B6", "CAST", "PWK", "WSB") %>% rev()
+width_height <- c(3, 5)
+
+meta %>%
+  filter(final_clusters %in% cluster) %>% 
+  mutate(final_clusters = factor(final_clusters, levels = cluster),
+         Strain = factor(Strain, levels = strain)) %>% 
+  ggplot(aes(y=homeo1, x= Strain, fill= Genotype)) +   # change y to the same as comp but no quotation mark
+    facet_grid(final_clusters ~ ., scales= "fixed") +
+    geom_split_violin(trim = TRUE) +
+    geom_boxplot(width = 0.25, notch = FALSE, notchwidth = .4, outlier.shape = NA, coef=0)+
+    scale_fill_manual(values=cbPalette) + 
+    coord_flip() +
+    theme_bw()+
+    labs(x=NULL, y="z-score") +
+    theme(legend.position = "bottom", 
+          strip.text = element_text(face = "bold", size = 12, family = "Arial"),
+          axis.text = element_text(size = 10), 
+          axis.text.y = element_text(face = "bold"),
+          axis.title.x = element_text(face = "bold", size = 12))
+
+ggsave(paste(output_path, "Vln2_", comp, ".png", sep = ""), dpi = 300, width = width_height[1], height = width_height[2])
+
+
+## plot DAM6 features
+comp <- "core_DAM61"
+cluster <- c("H", "6")
+strain <- c("B6", "CAST", "PWK", "WSB") %>% rev()
+width_height <- c(2.5, 5)
+
+meta %>%
+  filter(final_clusters %in% cluster) %>% 
+  mutate(final_clusters = factor(final_clusters, levels = cluster),
+         Strain = factor(Strain, levels = strain)) %>% 
+  ggplot(aes(y=core_DAM61, x= Strain, fill= Genotype)) +   # change y to the same as comp but no quotation mark
+    facet_grid(final_clusters ~ ., scales= "fixed") +
+    geom_split_violin(trim = TRUE) +
+    geom_boxplot(width = 0.25, notch = FALSE, notchwidth = .4, outlier.shape = NA, coef=0)+
+    scale_fill_manual(values=cbPalette) + 
+    coord_flip() +
+    theme_bw()+
+    labs(x=NULL, y="z-score") +
+    theme(legend.position = "bottom", 
+          strip.text = element_text(face = "bold", size = 12, family = "Arial"),
+          axis.text = element_text(size = 10), 
+          axis.text.y = element_text(face = "bold"),
+          axis.title.x = element_text(face = "bold", size = 12))
+
+ggsave(paste(output_path, "Vln2_", comp, ".png", sep = ""), dpi = 300, width = width_height[1], height = width_height[2])
+
+## plot IRM7 features
+comp <- "core_IRM71"
+cluster <- c("H", "7")
+strain <- c("B6", "CAST", "PWK", "WSB") %>% rev()
+width_height <- c(2.5, 5)
+
+meta %>%
+  filter(final_clusters %in% cluster) %>% 
+  mutate(final_clusters = factor(final_clusters, levels = cluster),
+         Strain = factor(Strain, levels = strain)) %>% 
+  ggplot(aes(y=core_IRM71, x= Strain, fill= Genotype)) +   # change y to the same as comp but no quotation mark
+    facet_grid(final_clusters ~ ., scales= "fixed") +
+    geom_split_violin(trim = TRUE) +
+    geom_boxplot(width = 0.25, notch = FALSE, notchwidth = .4, outlier.shape = NA, coef=0)+
+    scale_fill_manual(values=cbPalette) + 
+    coord_flip() +
+    theme_bw()+
+    labs(x=NULL, y="z-score") +
+    theme(legend.position = "bottom", 
+          strip.text = element_text(face = "bold", size = 12, family = "Arial"),
+          axis.text = element_text(size = 10), 
+          axis.text.y = element_text(face = "bold"),
+          axis.title.x = element_text(face = "bold", size = 12))
+
+ggsave(paste(output_path, "Vln2_", comp, ".png", sep = ""), dpi = 300, width = width_height[1], height = width_height[2])
+
+
+## plot DAM12 features
+comp <- "core_DAM121"
+cluster <- c("H", "12")
+strain <- c("B6", "CAST", "PWK", "WSB") %>% rev()
+width_height <- c(2.5, 5)
+
+meta %>%
+  filter(final_clusters %in% cluster) %>% 
+  mutate(final_clusters = factor(final_clusters, levels = cluster),
+         Strain = factor(Strain, levels = strain)) %>% 
+  ggplot(aes(y=core_DAM121, x= Strain, fill= Genotype)) +   # change y to the same as comp but no quotation mark
+    facet_grid(final_clusters ~ ., scales= "fixed") +
+    geom_split_violin(trim = TRUE) +
+    geom_boxplot(width = 0.25, notch = FALSE, notchwidth = .4, outlier.shape = NA, coef=0)+
+    scale_fill_manual(values=cbPalette) + 
+    coord_flip() +
+    theme_bw()+
+    labs(x=NULL, y="z-score") +
+    theme(legend.position = "bottom", 
+          strip.text = element_text(face = "bold", size = 12, family = "Arial"),
+          axis.text = element_text(size = 10), 
+          axis.text.y = element_text(face = "bold"),
+          axis.title.x = element_text(face = "bold", size = 12))
+
+ggsave(paste(output_path, "Vln2_", comp, ".png", sep = ""), dpi = 300, width = width_height[1], height = width_height[2])
+
+
+## plot cluster 10 features
+comp <- "core_cluster101"
+cluster <- c("H", "10")
+strain <- c("B6", "CAST", "PWK", "WSB") %>% rev()
+width_height <- c(2.5, 5)
+
+meta %>%
+  filter(final_clusters %in% cluster) %>% 
+  mutate(final_clusters = factor(final_clusters, levels = cluster),
+         Strain = factor(Strain, levels = strain)) %>% 
+  ggplot(aes(y=core_cluster101, x= Strain, fill= Genotype)) +   # change y to the same as comp but no quotation mark
+    facet_grid(final_clusters ~ ., scales= "fixed") +
+    geom_split_violin(trim = TRUE) +
+    geom_boxplot(width = 0.25, notch = FALSE, notchwidth = .4, outlier.shape = NA, coef=0)+
+    scale_fill_manual(values=cbPalette) + 
+    coord_flip() +
+    theme_bw() +
+    labs(x=NULL, y="z-score") +
+    theme(legend.position = "bottom", 
+          strip.text = element_text(face = "bold", size = 12, family = "Arial"),
+          axis.text = element_text(size = 10), 
+          axis.text.y = element_text(face = "bold"),
+          axis.title.x = element_text(face = "bold", size = 12))
+
+ggsave(paste(output_path, "Vln2_", comp, ".png", sep = ""), dpi = 300, width = width_height[1], height = width_height[2])
+
+```
+
+### convert overlapping genes into gene list
+```{r}
+
+DE_cluster_ls_ls <- vector(mode = "list") # make a big list to store each intersection list
+
+# DAM6
+comp <- "DAM6_Amit_Strooper"
+DE_cluster_list <- DE_DAM6_list
+DE_cluster_list[["Amit"]] <- gene_DAM
+DE_cluster_list[["de_Strooper"]] <- gene_ARM 
+DE_cluster_ls_ls[[comp]] <- DE_cluster_list
+
+# DAM12
+comp <- "DAM12_Amit_Strooper"
+DE_cluster_list <- DE_DAM12_list
+DE_cluster_list[["Amit"]] <- gene_DAM
+DE_cluster_list[["de_Strooper"]] <- gene_ARM 
+DE_cluster_ls_ls[[comp]] <- DE_cluster_list
+
+# IRM7
+comp <- "IRM7_Strooper_Stevens"
+DE_cluster_list <- DE_IRM_list
+DE_cluster_list[["de_Strooper"]] <- gene_IRM
+DE_cluster_list[["Stevens"]] <- gene_OA3
+DE_cluster_ls_ls[[comp]] <- DE_cluster_list
+
+#cluster10
+comp <- "cl10_Stevens_OA2"
+DE_cluster_list <- DE_cl10_list
+DE_cluster_list[["Stevens"]] <- gene_OA2
+DE_cluster_ls_ls[[comp]] <- DE_cluster_list
+
+names(DE_cluster_ls_ls)
+
+source("~/code/wild_AD_mic_scRNA/05_function/venn_intersects_upgrade.R")
+
+intersect_table_list <- map(DE_cluster_ls_ls, venn_intersects_upgrade)
+
+for (i in seq_along(intersect_table_list)){
+  intersect_table_list[[i]] <- intersect_table_list[[i]] %>% 
+    mutate(Orig_Symbol=as.character(Orig_Symbol),
+           Intersections=paste("Intersection", as.character(Intersections), sep="_"))
+}
+
+walk2(intersect_table_list, paste(output_path, "Interset_", names(DE_cluster_ls_ls), ".txt", sep = ""), write_delim, delim="\t")
+
+```

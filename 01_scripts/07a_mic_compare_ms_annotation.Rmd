@@ -1,0 +1,301 @@
+---
+title: "Microglia annotation (AddModule methods)"
+output: 
+  html_document:
+    keep_md: true
+---
+
+
+
+```{r global_options}
+knitr::opts_chunk$set(warning=FALSE, message=FALSE)
+```
+
+## Compare microglia from other datasets with ours using AddModuleScore function in Seurat
+#### Beth Steven's aging dataset
+#### Bart de Strooper's AD dataset
+#### Ido Amit's AD dataset
+
+```{r} 
+library(Seurat)
+library(patchwork)
+library(tidyverse)
+```
+
+
+
+### Load our dataset
+
+```{r}
+output_path <- "../03_results/07a_mic_compare_ms_annotation/"
+
+cd11b.integrated <- readRDS("../02_data/intermediate_rds/mg_int.rds") 
+
+## combine homeostatic microglia
+cd11b.integrated$final_clusters <-  ifelse(cd11b.integrated$seurat_clusters %in% 0:5,"H",
+                                           cd11b.integrated$seurat_clusters %>% as.character())
+cd11b.integrated$final_clusters <- factor(cd11b.integrated$final_clusters, 
+                                          levels = c("H", "6", "7", "8", "9", "10", "11", "12"))
+cd11b.integrated$Genotype <- factor(cd11b.integrated$Genotype, levels = c("WT", "APP/PS1"))
+
+cd11b.integrated$Strain <- gsub("B6J", "B6", cd11b.integrated$Strain)
+cd11b.integrated$Strain <- factor(cd11b.integrated$Strain, levels = c("B6", "CAST", "PWK", "WSB"))
+
+cd11b.integrated$Group <- gsub("B6J", "B6", cd11b.integrated$Group)
+
+cd11b.integrated$Group <- factor(cd11b.integrated$Group, 
+                                 levels=c("B6_WT", "B6_APP/PS1", "CAST_WT", "CAST_APP/PS1", "PWK_WT","PWK_APP/PS1", "WSB_WT", "WSB_APP/PS1"))
+
+```
+
+
+### Load marker genes of DAM in Ido Amits dataset
+select top DAM marker genes
+
+```{r}
+df_comp <- readxl::read_xlsx("../02_data/mic_comp_Amit/Amit_HvsDAM.xlsx", col_types=c("text", rep("numeric",4)))
+
+## The spread sheet is from Table S3 of Ido Amit's DAM paper: https://www.cell.com/fulltext/S0092-8674(17)30578-0
+## Original link of the dataset is:
+# "https://www.cell.com/cms/10.1016/j.cell.2017.05.018/attachment/84d2cdbe-568b-456d-8ab5-a5580ac075b6/mmc4.xlsx"
+
+names(df_comp) <- c("Symbol", "UMI_H", "log2FC", "log10p", "log10FDR")
+
+df_comp <- mutate(df_comp, 
+                      p_val=10^(-log10p), 
+                      p_val_adj=10^(-log10FDR))
+
+df_comp$log2FC %>% hist() 
+df_comp$log2FC %>% summary()
+
+df_comp$log10FDR %>% hist()
+df_comp$log10FDR %>% summary()
+
+
+## DAM markers
+top <- 50
+df_DAM <- df_comp %>% filter(log10FDR>10, log2FC>0.5, str_detect(Symbol, "^Gm", negate = TRUE)) %>% arrange(desc(log10FDR)) %>% head(50) ## top 49 genes
+
+df_DAM
+gene_DAM <- df_DAM$Symbol %>% unlist()
+
+gene_Homeo <- c("Tmem119", "Cx3cr1", "P2ry12", "P2ry13", "Cx3cr1", "Olfml3",  "Selplg", "Siglech", "Csf1r", "Cst3", "Sparc", "C1qa", "C1qb", "C1qc", "Tmsb4x", "Sall1", "Fcrls", "Gpr34", "Spi1",  "Mafb", "Maf", "Mef2a", "Irf8") 
+```
+
+
+```{r}
+cd11b.integrated <- AddModuleScore(object = cd11b.integrated, features = list(gene_DAM), ctrl = 100, name = 'DAM_feature') 
+
+cd11b.integrated <- AddModuleScore(object = cd11b.integrated, features = list(gene_Homeo), ctrl = 100, name = 'Homeostatic_feature') 
+
+```
+
+
+### Load marker genes of ARM, IRM, CPM in Strooper's dataset
+#### The marker genes is not readily uploaded onto the website, we recovered their dataset and calculated marker genes
+
+```{r}
+df_comp <- read_delim("../03_results/06a_mic_Strooper/Seurat_Strooper_markers.txt", delim = "\t")
+
+df_comp %>% group_by(cluster) %>% top_n(n=-10, wt=p_val_adj)
+
+```
+
+### ARM, IRM, CPM
+```{r}
+
+gene_ARM <- df_comp %>% filter(cluster==2, -log10(p_val_adj)>10, avg_logFC>0.5, str_detect(gene, "^Gm", negate = TRUE)) %>% arrange(desc(-log10(p_val_adj))) %>% .$gene %>% unlist() %>% head(top) 
+gene_IRM <- df_comp %>% filter(cluster==7, -log10(p_val_adj)>10, avg_logFC>0.5, str_detect(gene, "^Gm", negate = TRUE)) %>% .$gene %>% unlist() %>% head(top)
+gene_CPM <- df_comp %>% filter(cluster==6, -log10(p_val_adj)>10, avg_logFC>0.5) %>% .$gene %>% unlist() %>% head(top)
+gene_CPM <- c(gene_CPM, "Top2a", "Mcm2") # 4 genes adding original data.
+
+```
+
+```{r}
+feature="ARM_feature"
+cd11b.integrated <- AddModuleScore(object = cd11b.integrated, features = list(gene_ARM), ctrl = 100, name = feature) 
+
+feature="IRM_feature"
+cd11b.integrated <- AddModuleScore(object = cd11b.integrated, features = list(gene_IRM), ctrl = 100, name = feature) 
+
+feature="CPM_feature"
+cd11b.integrated <- AddModuleScore(object = cd11b.integrated, features = list(gene_CPM), ctrl = 100, name = feature) 
+
+```
+
+
+
+### Load marker genes of OA2 (Ccl3/Ccl4 enriched), OA3 (IRM equivalent) in Steven's dataset
+```{r}
+
+input_file <- "../02_data/mic_comp_Stevens/Stevens_cluster_marker.xlsx"
+M_stevens_sheet_name <- readxl::excel_sheets(input_file)
+
+sheet <- 1:(length(M_stevens_sheet_name)-1) # do not include the last Transcription factors
+
+df_comp <- vector(mode = "list", length = length(sheet))
+
+for(i in sheet){
+  df_comp[[i]] <- readxl::read_xlsx(input_file, sheet = i, skip = 2)
+  df_comp[[i]] <- df_comp[[i]] %>% 
+    select(1:6)%>% 
+    mutate(cluster=M_stevens_sheet_name[i]) 
+}
+
+df_comp <- do.call(rbind, df_comp)
+
+colnames(df_comp) <- c("gene", "FC", "p_val", "p_val_adj", "pct_1", "pct_2", "cluster")
+
+df_comp <- df_comp %>% mutate(cluster=str_remove_all(cluster, "Cluster|\\(|\\)| "), 
+                              p_val=as.double(p_val),
+                              p_val_adj=as.double(p_val_adj))
+df_comp$cluster %>% unique()
+```
+
+```{r}
+gene_OA2 <- df_comp %>% filter(cluster=="AgingOA2", -log10(p_val_adj)>10, log2(FC)>0.5, str_detect(gene, "^Gm", negate = TRUE)) %>% arrange(p_val_adj, desc(FC)) %>% head(50) %>% .$gene %>% unlist() # 50 genes
+
+gene_OA3 <- df_comp %>% filter(cluster=="AgingOA3", -log10(p_val_adj)>10, log2(FC)>0.5, str_detect(gene, "^Gm", negate = TRUE)) %>% arrange(p_val_adj, desc(FC)) %>% head(50) %>% .$gene %>% unlist() # 19 genes
+
+
+feature="Aging_OA2"
+cd11b.integrated <- AddModuleScore(object = cd11b.integrated, features = list(gene_OA2), ctrl = 100, name = feature) 
+
+feature="Aging_OA3"
+cd11b.integrated <- AddModuleScore(object = cd11b.integrated, features = list(gene_OA3), ctrl = 100, name = feature) 
+```
+
+### Plot Violin plot for mouse microglia feature from multiple studies
+```{r, fig.width=3.5, fig.height= 7}
+meta <- cd11b.integrated@meta.data
+
+meta_tidy <- meta %>% 
+  select(Strain, Genotype, final_clusters:Aging_OA31) %>% 
+  gather(key="study", value = "z_score", -Strain, -Genotype, -final_clusters)
+
+study_ms <- c("Homeostatic_feature1", "DAM_feature1", "ARM_feature1", "Aging_OA21", "IRM_feature1", "Aging_OA31", "CPM_feature1")
+study_ms_lab <- c("Homeostatic", "DAM_Amit", "ARM_de_Strooper", "AgingOA2_Stevens", "IRM_de_Strooper", "AgingOA3_Stevnes", "CPM_de_Strooper")
+
+meta_tidy <- meta_tidy %>% 
+  filter(study %in% study_ms) %>% 
+  mutate(study = factor(study, levels = study_ms, labels = study_ms_lab))
+
+meta_tidy%>% 
+  ggplot(aes(y=z_score, x= final_clusters, color= final_clusters)) +
+    facet_grid(study ~ ., scales= "fixed") +
+    geom_violin() +
+    geom_boxplot(width=0.15, outlier.shape = NA, color = "black", alpha=0.7) +
+    theme_bw()+
+    theme(legend.position = "none", 
+          axis.title = element_blank(), 
+          strip.text = element_text(face = "bold", size = 8, family = "Arial"),
+          axis.text = element_text(size = 8))
+ggsave(paste(output_path, "Vln_ms_multi_comp.png", sep = ""), dpi = 300, width = 3.5, height = 5)
+```
+
+
+## Comparing the z-score across clusters for each feature (two-way ANOVA)
+
+### DAM_feature1 (Amit)
+```{r }
+
+clusters <- levels(meta$final_clusters) %>% as.list()
+
+####single function for stain and GT interaction
+data = meta %>% filter(final_clusters %in% clusters[[2]])
+aov_object = aov(DAM_feature1 ~ Strain*Genotype , data=data)
+aov.pvals = summary(aov_object)
+aov.pvals= aov.pvals[[1]][5] %>% t() %>% as.data.frame()
+names(aov.pvals) <- c("Strain", "Genotype", "Strain_Genotype", "Residuals")
+aov.pvals <- aov.pvals %>% 
+  select(-Residuals) %>% 
+  mutate(Cluster = clusters[2] %>% as.character())
+
+### wrap into function for DAM_feature1
+aov_StrainGT <- function(cluster, data){
+  data = data %>% filter(final_clusters %in% clusters)
+  aov_object = aov(DAM_feature1 ~ Strain*Genotype, data=data)
+  aov.pvals = summary(aov_object)
+  aov.pvals= aov.pvals[[1]][5] %>% t() %>% as.data.frame()
+  names(aov.pvals) <- c("Strain", "Genotype", "Strain_Genotype", "Residuals")
+  aov.pvals <- aov.pvals %>% 
+    select(-Residuals) %>% 
+    mutate(Cluster = cluster %>% as.character())
+  return(aov.pvals)
+}
+
+aov_StrainGT_object <- function(cluster, data){
+  data = data %>% filter(final_clusters %in% clusters)
+  aov_object = aov(DAM_feature1 ~ Strain*Genotype, data=data)
+  return(aov_object)
+}
+
+aov_StrainGT_table <- clusters %>% map_df(aov_StrainGT, data=meta)
+aov_StrainGT_table <- aov_StrainGT_table %>% mutate_if(is.double, p.adjust)
+
+aov_StrainGT_table$Cluster[aov_StrainGT_table$Strain_Genotype<0.05]
+
+aov_StrainGT_table$Cluster[aov_StrainGT_table$Strain<0.05]
+
+aov_StrainGT_table$Cluster[aov_StrainGT_table$Genotype<0.05]
+
+```
+
+All clusters have strain, genotype and strain by genotype effects for DAM_feature1, we focus on cluster 6 and cluster 12. 
+
+```{r}
+
+aov_object_list <- clusters %>% map(aov_StrainGT_object, data=meta)
+names(aov_object_list) <- clusters %>% unlist()
+
+TukeyHSD(aov_object_list[["6"]]) %>% .$`Strain:Genotype` %>% data.frame(.,cluster="6")
+TukeyHSD(aov_object_list[["12"]]) %>% .$`Strain:Genotype` %>% data.frame(.,cluster="12")
+
+```
+
+
+### IRM_feature1 (Bart de Strooper)
+
+```{r }
+
+clusters <- levels(meta$final_clusters) %>% as.list()
+sig.level <- 1e-10
+
+### function for IRM_feature1
+aov_StrainGT <- function(cluster, data){
+  data = data %>% filter(final_clusters %in% clusters)
+  aov_object = aov(IRM_feature1 ~ Strain*Genotype, data=data) ## IRM
+  aov.pvals = summary(aov_object)
+  aov.pvals= aov.pvals[[1]][5] %>% t() %>% as.data.frame()
+  names(aov.pvals) <- c("Strain", "Genotype", "Strain_Genotype", "Residuals")
+  aov.pvals <- aov.pvals %>% 
+    select(-Residuals) %>% 
+    mutate(Cluster = cluster %>% as.character())
+  return(aov.pvals)
+}
+
+aov_StrainGT_object <- function(cluster, data){
+  data = data %>% filter(final_clusters %in% clusters)
+  aov_object = aov(IRM_feature1 ~ Strain*Genotype, data=data)  ## IRM
+  return(aov_object)
+}
+
+aov_StrainGT_table <- clusters %>% map_df(aov_StrainGT, data=meta)
+aov_StrainGT_table <- aov_StrainGT_table %>% mutate_if(is.double, p.adjust)
+
+aov_StrainGT_table$Cluster[aov_StrainGT_table$Strain_Genotype<sig.level]
+
+aov_StrainGT_table$Cluster[aov_StrainGT_table$Strain<sig.level]
+
+aov_StrainGT_table$Cluster[aov_StrainGT_table$Genotype<sig.level]
+
+```
+
+
+```{r}
+aov_object_list <- clusters %>% map(aov_StrainGT_object, data=meta)
+names(aov_object_list) <- clusters %>% unlist()
+
+TukeyHSD(aov_object_list[["7"]]) %>% .$`Strain:Genotype` %>% data.frame(.,cluster="7")
+
+```

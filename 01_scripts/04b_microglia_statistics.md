@@ -354,3 +354,166 @@ stat_APP_strain_cluster <- stat_all %>%
 write_delim(stat_APP_strain_cluster, paste(path, "stat_APP_between_strain.txt", sep = ""), delim = "\t") 
 ```
 
+
+### check the statistics on nFeature, percent of mitochodria, and percent of ribosomal genes for each cluster
+
+```r
+## nFeature
+aov_stat = aov(Med_nFeature ~ new_clusters, data=cd11b.meta.stat)
+aov_table <- TukeyHSD(aov_stat) %>% .$new_clusters %>% data.frame() %>% rownames_to_column(var = "comparison") %>% 
+  mutate(comparison=paste(" ", comparison, sep = ""), Significance=ifelse(p.adj<0.05, "S", "NS"))
+write_delim(aov_table, path = paste(path, "Med_nFeature_comp_cluster.txt", sep = ""), delim = "\t")
+filter(aov_table, Significance=="S")
+```
+
+```
+##    comparison       diff        lwr         upr        p.adj Significance
+## 1         6-H  1041.1724   796.0242  1286.32060 0.000000e+00            S
+## 2         8-H -1153.9828 -1399.1309  -908.83457 0.000000e+00            S
+## 3         9-H -1276.5862 -1521.7344 -1031.43802 0.000000e+00            S
+## 4        11-H   747.2241   502.0759   992.37233 1.665335e-15            S
+## 5        12-H -1121.1034 -1366.2516  -875.95526 0.000000e+00            S
+## 6         7-6  -930.4138 -1175.5620  -685.26560 0.000000e+00            S
+## 7         8-6 -2195.1552 -2440.3034 -1950.00698 0.000000e+00            S
+## 8         9-6 -2317.7586 -2562.9068 -2072.61043 0.000000e+00            S
+## 9        10-6  -831.6724 -1076.8206  -586.52423 0.000000e+00            S
+## 10       11-6  -293.9483  -539.0965   -48.80009 7.249001e-03            S
+## 11       12-6 -2162.2759 -2407.4241 -1917.12767 0.000000e+00            S
+## 12        8-7 -1264.7414 -1509.8896 -1019.59319 0.000000e+00            S
+## 13        9-7 -1387.3448 -1632.4930 -1142.19664 0.000000e+00            S
+## 14       11-7   636.4655   391.3173   881.61371 2.650880e-12            S
+## 15       12-7 -1231.8621 -1477.0103  -986.71388 0.000000e+00            S
+## 16       10-8  1363.4828  1118.3346  1608.63095 0.000000e+00            S
+## 17       11-8  1901.2069  1656.0587  2146.35509 0.000000e+00            S
+## 18       10-9  1486.0862  1240.9380  1731.23440 0.000000e+00            S
+## 19       11-9  2023.8103  1778.6622  2268.95853 0.000000e+00            S
+## 20      11-10   537.7241   292.5759   782.87233 4.353195e-09            S
+## 21      12-10 -1330.6034 -1575.7516 -1085.45526 0.000000e+00            S
+## 22      12-11 -1868.3276 -2113.4758 -1623.17940 0.000000e+00            S
+```
+
+```r
+## percent of mitochodria
+aov_stat = aov(Med_percent_mt ~ new_clusters, data=cd11b.meta.stat)
+aov_table <- TukeyHSD(aov_stat) %>% .$new_clusters %>% data.frame() %>% rownames_to_column(var = "comparison") %>% 
+  mutate(comparison=paste(" ", comparison, sep = ""),Significance=ifelse(p.adj<0.05, "S", "NS"))
+write_delim(aov_table, path = paste(path, "Med_percent_mt_comp_cluster.txt", sep = ""), delim = "\t")
+filter(aov_table, Significance=="S")
+```
+
+```
+##    comparison       diff         lwr        upr        p.adj Significance
+## 1         8-H  1.5357783  1.12890765  1.9426489 0.000000e+00            S
+## 2         9-H  1.4652269  1.05835624  1.8720975 0.000000e+00            S
+## 3        12-H  0.5280024  0.12113175  0.9348730 2.418138e-03            S
+## 4         8-6  1.1877000  0.78082939  1.5945707 9.436896e-15            S
+## 5         9-6  1.1171486  0.71027798  1.5240193 1.495470e-13            S
+## 6         8-7  1.4443520  1.03748139  1.8512227 0.000000e+00            S
+## 7         9-7  1.3738006  0.96692998  1.7806713 0.000000e+00            S
+## 8        12-7  0.4365761  0.02970549  0.8434468 2.580750e-02            S
+## 9        10-8 -1.4571625 -1.86403315 -1.0502919 0.000000e+00            S
+## 10       11-8 -1.2688316 -1.67570229 -0.8619610 6.883383e-15            S
+## 11       12-8 -1.0077759 -1.41464653 -0.6009053 2.557010e-11            S
+## 12       10-9 -1.3866111 -1.79348174 -0.9797405 0.000000e+00            S
+## 13       11-9 -1.1982802 -1.60515088 -0.7914096 6.106227e-15            S
+## 14       12-9 -0.9372245 -1.34409513 -0.5303538 6.195263e-10            S
+## 15      12-10  0.4493866  0.04251597  0.8562573 1.907217e-02            S
+```
+
+```r
+## percent of ribosomal
+aov_stat = aov(Med_percent_ribo ~ new_clusters, data=cd11b.meta.stat)
+aov_table <- TukeyHSD(aov_stat) %>% .$new_clusters %>% data.frame() %>% rownames_to_column(var = "comparison") %>% 
+  mutate(comparison=paste(" ", comparison, sep = ""),Significance=ifelse(p.adj<0.05, "S", "NS"))
+write_delim(aov_table, path = paste(path, "Med_percent_ribo_comp_cluster.txt", sep = ""), delim = "\t")
+filter(aov_table, Significance=="S")
+```
+
+```
+##    comparison       diff        lwr       upr        p.adj Significance
+## 1         6-H   5.017224   3.472120  6.562327 6.661338e-16            S
+## 2         8-H  -5.343313  -6.888416 -3.798209 0.000000e+00            S
+## 3         9-H   6.706032   5.160929  8.251136 0.000000e+00            S
+## 4        12-H  12.460227  10.915123 14.005330 0.000000e+00            S
+## 5         7-6  -4.286663  -5.831766 -2.741559 9.137135e-14            S
+## 6         8-6 -10.360536 -11.905640 -8.815433 0.000000e+00            S
+## 7         9-6   1.688808   0.143705  3.233912 2.132229e-02            S
+## 8        10-6  -5.116565  -6.661668 -3.571462 2.997602e-15            S
+## 9        11-6  -4.585704  -6.130807 -3.040600 6.661338e-15            S
+## 10       12-6   7.443003   5.897899  8.988106 0.000000e+00            S
+## 11        8-7  -6.073874  -7.618977 -4.528770 0.000000e+00            S
+## 12        9-7   5.975471   4.430368  7.520574 0.000000e+00            S
+## 13       12-7  11.729665  10.184562 13.274769 0.000000e+00            S
+## 14        9-8  12.049345  10.504241 13.594448 0.000000e+00            S
+## 15       10-8   5.243971   3.698868  6.789075 0.000000e+00            S
+## 16       11-8   5.774833   4.229729  7.319936 0.000000e+00            S
+## 17       12-8  17.803539  16.258436 19.348643 0.000000e+00            S
+## 18       10-9  -6.805373  -8.350477 -5.260270 0.000000e+00            S
+## 19       11-9  -6.274512  -7.819616 -4.729409 0.000000e+00            S
+## 20       12-9   5.754194   4.209091  7.299298 0.000000e+00            S
+## 21      12-10  12.559568  11.014465 14.104671 0.000000e+00            S
+## 22      12-11  12.028707  10.483603 13.573810 0.000000e+00            S
+```
+
+## Pseudotime analysis (diffusion map)
+#### too many cells for diffusion map, need sampling
+
+
+```r
+library(destiny)
+library(SingleCellExperiment)
+library(scater)
+
+cd11b.integrated$final_clusters <-  ifelse(cd11b.integrated$seurat_clusters %in% 0:5,"H",
+                                           cd11b.integrated$seurat_clusters %>% as.character())
+
+sampling <- cd11b.integrated@meta.data %>% 
+  rownames_to_column(var = "cell_ID") %>% 
+  group_by(Group) %>% 
+  sample_n(1000) # take 1000 random cells from each group
+
+mg.small <- subset(cd11b.integrated, cells=sampling$cell_ID)
+
+mg.small <- as.SingleCellExperiment(mg.small)
+
+# use diffusion map to calculate pseudotime
+pca <- reducedDim(mg.small)
+cellLabels <- mg.small$seurat_clusters
+
+pca_tidy <- as.data.frame(pca) %>% rownames_to_column()
+
+rownames(pca) <- cellLabels
+
+dm <- DiffusionMap(pca)
+
+dpt <- DPT(dm) #
+
+mg.small$pseudotime_dpt <- rank(dpt$dpt) 
+
+df <- colData(mg.small) %>% as.data.frame()
+
+df$final_clusters<- ifelse(df$seurat_clusters %in% 0:5,"H", df$seurat_clusters %>% as.character())
+
+ggplot(df, aes(pseudotime_dpt, fill=final_clusters)) +
+  geom_histogram(binwidth = 100, color="grey",size=0.1)+ 
+  facet_grid(Group~., switch="y")+ 
+  scale_y_continuous("count", position="right") +
+  labs(x="DAM <-  pseudotime  -> Homeostatic")+
+  theme_bw()+
+  theme(text = element_text(family = "Arial", size = 10),
+        strip.text.y = element_text(size=5),
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title.y.right = element_blank(),
+        legend.position = "null")
+```
+
+![](04b_microglia_statistics_files/figure-html/unnamed-chunk-9-1.png)<!-- -->
+
+```r
+ggsave(paste(path, "pseudotime.png", sep = ""), width = 3.5 , height = 5.3, units = "in", dpi = 600)
+```
+
+
+
+

@@ -237,5 +237,60 @@ filter(aov_table, Significance=="S")
 
 ```
 
+## Pseudotime analysis (diffusion map)
+#### too many cells for diffusion map, need sampling
+
+```{r, fig.width=3.5, fig.height=5.3}
+library(destiny)
+library(SingleCellExperiment)
+library(scater)
+
+cd11b.integrated$final_clusters <-  ifelse(cd11b.integrated$seurat_clusters %in% 0:5,"H",
+                                           cd11b.integrated$seurat_clusters %>% as.character())
+
+sampling <- cd11b.integrated@meta.data %>% 
+  rownames_to_column(var = "cell_ID") %>% 
+  group_by(Group) %>% 
+  sample_n(1000) # take 1000 random cells from each group
+
+mg.small <- subset(cd11b.integrated, cells=sampling$cell_ID)
+
+mg.small <- as.SingleCellExperiment(mg.small)
+
+# use diffusion map to calculate pseudotime
+pca <- reducedDim(mg.small)
+cellLabels <- mg.small$seurat_clusters
+
+pca_tidy <- as.data.frame(pca) %>% rownames_to_column()
+
+rownames(pca) <- cellLabels
+
+dm <- DiffusionMap(pca)
+
+dpt <- DPT(dm) #
+
+mg.small$pseudotime_dpt <- rank(dpt$dpt) 
+
+df <- colData(mg.small) %>% as.data.frame()
+
+df$final_clusters<- ifelse(df$seurat_clusters %in% 0:5,"H", df$seurat_clusters %>% as.character())
+
+ggplot(df, aes(pseudotime_dpt, fill=final_clusters)) +
+  geom_histogram(binwidth = 100, color="grey",size=0.1)+ 
+  facet_grid(Group~., switch="y")+ 
+  scale_y_continuous("count", position="right") +
+  labs(x="DAM <-  pseudotime  -> Homeostatic")+
+  theme_bw()+
+  theme(text = element_text(family = "Arial", size = 10),
+        strip.text.y = element_text(size=5),
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title.y.right = element_blank(),
+        legend.position = "null")
+ggsave(paste(path, "pseudotime.png", sep = ""), width = 3.5 , height = 5.3, units = "in", dpi = 600)
+
+```
+
+
 
 
