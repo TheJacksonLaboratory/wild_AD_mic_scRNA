@@ -11,7 +11,7 @@ Microglia were mechanically isolated from 8-9 months-old female mice from our wi
 
 Data were processed using a customized pipeline (scBASE) allowing strain-specific genome alignment followed by downstream analyses using Seurat and edgeR packages. 
 
-Please check more details in a previous version of manuscript.(current version is still under review)
+Please check more details in a previous version of manuscript.(The manuscript has been accepted on Cell Reports on 12/02/20, a final version will be updated soon)
 https://www.biorxiv.org/content/10.1101/2020.06.02.130237v1
 
 
