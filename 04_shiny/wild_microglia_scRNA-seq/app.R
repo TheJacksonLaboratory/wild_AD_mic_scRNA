@@ -10,8 +10,10 @@ library(patchwork)
 #cd11b.integrated <- readRDS("~/code/2019_04_scRNA_CD11b/emase_2/output/Integration_mg/mg_int.rds") 
 cd11b.integrated <- readRDS(config::get("myfile"))
 DE_vsB6 <- read_delim("data/DE_vsB6_coef_cluster.txt", delim = "\t", col_types = "cccdcdddddcc") %>% 
-  select(-Symbol) %>% 
-  rename(Symbol="Orig_Symbol")
+  select(-Symbol, -logFC, -logCPM, -F) %>% 
+  rename(Symbol="Orig_Symbol") %>% 
+  mutate(FDR = formatC(FDR, format = "e", digits = 2),
+         PValue = formatC(PValue, format = "e", digits = 2))
 
 # the_file <- config::get(“myfile”)
 # 
@@ -23,12 +25,15 @@ cd11b.integrated$Strain <- str_replace_all(cd11b.integrated$Strain, pattern = "B
 cd11b.integrated$Group <- str_replace_all(cd11b.integrated$Group, pattern = "B6J", replacement = "B6")
 cd11b.integrated$Group <- factor(cd11b.integrated$Group, levels = c("B6_WT","B6_APP/PS1","CAST_WT", "CAST_APP/PS1", 
                                                                     "PWK_WT",  "PWK_APP/PS1", "WSB_WT", "WSB_APP/PS1"))
+cd11b.integrated$final_clusters <- ifelse(cd11b.integrated$seurat_clusters %in% 0:5, "H", as.character(cd11b.integrated$seurat_clusters))
+cd11b.integrated$final_clusters <- factor(cd11b.integrated$final_clusters, levels = c("H", "6", "7", "8", "9", "10", "11", "12"))
+
 Idents(cd11b.integrated) <- "Group"
 group <- levels(cd11b.integrated$Group)
 split <- vector(mode = "list", length = length(group))
 for (i in seq_along(group)){
   split[[i]] <- cd11b.integrated %>% subset(idents=group[i])
-  Idents(split[[i]]) <- "seurat_clusters"
+  Idents(split[[i]]) <- "final_clusters"
   # subset(subset=Group==group[i]) doesn't work
 }
 
@@ -36,7 +41,7 @@ for (i in seq_along(group)){
 
 ui <- fluidPage(
   # Application title
-  titlePanel("Microglia in Wild-derived Strains"),
+  titlePanel("Microglia in wild-derived APP/PS1 strains"),
   
   # Sidebar with a select input for gene name 
   sidebarLayout(

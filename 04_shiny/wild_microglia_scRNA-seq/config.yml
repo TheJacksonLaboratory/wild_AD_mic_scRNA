@@ -1,6 +1,6 @@
 default:
 
-  myfile: ~/code/2019_04_scRNA_CD11b/emase_2/output/Integration_mg/mg_int.rds
+  myfile: ~/code/wild_AD_mic_scRNA/02_data/intermediate_rds/mg_int.rds
 
  
 
