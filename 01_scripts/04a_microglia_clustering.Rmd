@@ -132,6 +132,20 @@ DimPlot(cd11b.integrated, reduction = "umap", label = TRUE, pt.size = 1E-10, spl
   theme(title = element_text(size = 3), 
         axis.text = element_text(size = 6),
         legend.position = "none")
+
+## UMAP split plot without labels for graphic abstract
+p <- DimPlot(cd11b.integrated, reduction = "umap", label = FALSE, pt.size = 1E-10, split.by = "Group", ncol = 2, label.size = 3, repel = TRUE) + 
+  coord_fixed()+
+  theme(text = element_blank(), legend.position = "none")
+ggsave(paste(path, plot_title, "_", "umap_", i, "_res_", j, "_DimPlot_Strain_split_no_text_no_label",  ".png", sep=""), p, units = "in", width = 4.5, height = 9,  dpi=300)
+
+
+## UMAP plot combined without labels for graphic abstract
+p <- DimPlot(cd11b.integrated, reduction = "umap", label = FALSE, pt.size = 0.001, label.size = 5) + 
+  coord_fixed()+
+  theme(axis.title = element_blank(), legend.position = "none")
+ggsave(paste(path, plot_title, "_", "umap_", i, "_res_", j, "_DimPlot_Strain_small_no_label",  ".png", sep=""),p, units = "in", width = 5, height = 5,  dpi=300)
+
 ```
 
 ## Dot plot of microglia marker genes for each clusters

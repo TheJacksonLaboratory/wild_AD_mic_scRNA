@@ -57,6 +57,15 @@ ggplot(cd11b.meta, aes(y=N, x=Genotype, fill= new_clusters)) +
         axis.line.x = element_blank())
 ggsave(paste(path, "fraction_WT_APPPS1.png", sep=""), width = 4.5, height = 4.5, units = "in")
 
+# Display fraction for H combined clusters
+cd11b.integrated$new_clusters <- ifelse(cd11b.integrated$seurat_clusters %in% 0:5, "H", as.character(cd11b.integrated$seurat_clusters))
+Idents(cd11b.integrated) <- "new_clusters"
+x <- prop.table(table(Idents(cd11b.integrated), cd11b.integrated$Group), margin = 2)
+x
+
+# Display the total number of N for each clusters in each group
+y <- cd11b.meta %>% filter(new_clusters %in% c("H", "6", '7', '12')) %>% arrange(new_clusters)
+y
 ```
 
 ### plot both genotypes in all strains (all replicates separated)
