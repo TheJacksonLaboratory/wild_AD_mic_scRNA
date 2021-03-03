@@ -1,7 +1,7 @@
 # scRNA-seq on microglia from wild-derived Alzheimer's mouse model
 
 ## Publication, data and shiny app
-This github site stores all the scripts to reproduce the analysis in for our paper published in Cell Reports: https://doi.org/10.1016/j.celrep.2021.108739
+This github site stores all the scripts to reproduce the analysis in our paper published in Cell Reports: https://doi.org/10.1016/j.celrep.2021.108739
 
 All the raw data, processed data and analysis data (the Seurat object) have been submitted to AD Knowledge Portal (http://adknowledgeportal.synapse.org). All the contents can be found at: https://doi.org/10.7303/syn23763409
 
