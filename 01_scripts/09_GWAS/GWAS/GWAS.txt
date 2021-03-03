@@ -1,0 +1,74 @@
+RS Chr BP A1/A2 Minor
+allele MAF Effect OR[CI95%] P-value Top SNP found in Locus priority
+Region
+included in
+validation
+Closet Gene Culprit variant
+identified Culprit Gene Other Mutations observed Certainty
+culprit gene Hit pleitropy
+rs4844610 1 2.08E+08 A/C A 0.166 Risk 1.14[1.11-1.16] 7.30E-31 Kunkle et al. 2019 Lambert et al. 2009 No CR1 CNV(linked to hit) CR1 no clear no
+rs876461 2 37515958 A/G A 0.143 Risk 1.07[1.05-1.09] 1.34E-09 Present work Present work Yes PRKD3/NDUFAF7 no PRKD3/NDUFAF7 no possible no
+rs6733839 2 1.28E+08 T/C T 0.356 Risk 0.84[0.83-0.86] 6.43E-77 Lambert et al. 2013 Seshadri et al. 2010 No BIN1 no BIN1 missense variant clear no
+rs10933431 2 2.34E+08 C/G G 0.238 Protective 1.08[1.06-1.10] 3.64E-12 Kunkle et al. 2019 Lambert et al. 2013 No INPP5D no INPP5D no likely no
+rs4351014 4 11027619 T/C T 0.316 Risk 0.94[0.92-0.95] 9.16E-12 Present work Desikan al. 2015 Yes HS3ST1 no HS3ST1 no possible no
+rs9275152 6 32652196 T/C C 0.068 Protective 0.88[0.85-0.91] 4.17E-16 Present work Lambert et al. 2013 No HLA no HLA-DRB1 no unclear no
+rs143332484 6 41129207 T/C T 0.016 Risk 1.08[0.86-1.35] 5.19E-01 Sims et al. 2017 Sims et al. 2017 No TREM2 Missense Arg62His TREM2 missense, nonsense variants clear no
+rs75932628 6 41129252 T/C T 0.003 Risk 0.50[0.41-0.60] 6.95E-14 Jonson et al. 2013 Jonson et al. 2013 No TREM2 Missense Arg47His TREM2 missense, nonsense variants clear no
+rs9381040 6 41154650 T/C T 0.281 Protective 1.05[1.03-1.07] 3.72E-08 Present work Benítez et al. 2014 No TREML2 no TREML2 no likely no
+rs9381564 6 47443806 A/G G 0.278 Risk 0.93[0.91-0.94] 1.79E-15 Present work Lambert et al. 2013 No CD2AP no CD2AP missense variant likely no
+rs1859788 7 99971834 A/G A 0.277 Protective 0.92[0.90-0.93] 1.94E-20 Rathore et al. 2018 Hollinworth et al. 2011 No PILRA Missense Gly78Arg PILRA no clear no
+rs56402156 7 1.43E+08 A/G A 0.191 Protective 0.92[0.90-0.94] 9.63E-14 Marioni et al. 2018 Lambert et al. 2013 No EPHA1 no EPHA1 missense variant likely no
+rs73223431 8 27219987 T/C T 0.384 Risk 0.93[0.91-0.94] 1.94E-17 Kunkle et al. 2019 Lambert et al. 2013 No PTK2B no PTK2B no likely no
+rs9331896 8 27467686 T/C C 0.365 Protective 0.90[0.89-0.92] 3.77E-29 Lambert et al. 2013 Harold et al. 2009 No CLU no CLU no likely no
+rs34674752 8 1.45E+08 A/G A 0.052 Risk 1.13[1.09-1.18] 1.00E-09 Present work Lancour et al. 2018 yes SHARPIN Missense Pro294Ser SHARPIN missense variant clear Blood cell counts
+rs34173062 8 1.45E+08 A/G A 0.085 Risk 1.14[1.10-1.18] 9.62E-13 Present work Lancour et al. 2018 Yes SHARPIN Missense Ser17Phe SHARPIN missense variant clear Blood cell counts
+rs7920721 10 11720308 A/G G 0.396 Risk 0.94[0.93-0.96] 3.09E-11 Desikan et al. 2015 Desikan et al. 2015 No ECHDC3 no ECHDC3 no unclear C-reactive protein
+rs3740688 11 47380340 T/G G 0.457 Protective 1.07[1.05-1.09] 1.93E-14 Marioni et al. 2018 Huang et al. 2015 No SPI1 no SPI1 no clear no
+rs1582763 11 60021948 A/G A 0.379 Protective 0.91[0.90-0.93] 8.69E-24 Jun et al. 2015 Hollinworth et al. 2011 No MS4A4A no MS4A4A no likely C-reactive protein,
+TREM2 expression
+rs3851179 11 85868640 T/C T 0.332 Protective 1.12[1.10-1.14] 3.87E-38 Harold et al. 2009 Harold et al. 2009 No PICALM no PICALM no clear no
+rs11218343 11 1.21E+08 T/C C 0.033 Protective 0.83[0.79-0.87] 5.59E-16 Miyashita et al. 2013 Rogaeva et al. 2007 No SORL1 no SORL1 missense variant (incomplete
+penetrance), LOF variants clear Triglycerides levels
+rs17125924 14 53391680 A/G G 0.063 Risk 0.89[0.87-0.92] 6.30E-14 Marioni et al. 2018 Lambert et al. 2013 No FERMT2 no FERMT2 no likely no
+rs11623019 14 92936971 T/C T 0.267 Risk 0.93[0.91-0.94] 2.41E-13 Present work Lambert et al. 2013 No RIN3/SLC24A4 no RIN3/SLC24A4 no unclear no
+rs593742 15 59045774 A/G G 0.228 Protective 1.08[1.06-1.10] 3.20E-15 Marioni et al. 2018 Kim et al. 2009 No ADAM10 no ADAM10 missense variant (incomplete
+penetrance) likely no
+rs117618017 15 63569902 T/C T 0.165 Risk 0.91[0.89-0.94] 7.98E-11 Jansen al. 2019 Poli et al. 2008 No APH1B Missense Thr27Ile APH1B no likely no
+rs7185636 16 19808163 T/C C 0.202 Protective 0.95[0.93-0.97] 2.30E-05 Kunkle et al. 2019 Kunkle et al. 2019 No IQCK no IQCK, KNOP1 yes likely no
+rs4985556 16 70694000 A/C A 0.111 Risk 1.08[1.06-1.11] 3.91E-10 Marioni et al. 2018 Marioni et al. 2018 Yes IL34 Stop Gained
+Tyr213Ter IL34 no clear no
+rs12444183 16 81773209 A/G A 0.407 Protective 0.95[0.93-0.96] 6.87E-12 Marioni et al. 2018 Sims et al. 2017 Yes PLCG2 no PLCG2 rare variant Pro522Leu likely no
+rs3935877 16 81900853 T/C T 0.132 Risk 0.92[0.90-0.95] 6.85E-09 Present work Sims et al. 2017 yes PLCG2 no PLCG2 rare variant Pro522Leu likely no
+rs72824905 16 81942028 C/G G 0.005 Protective 0.72[0.61-0.86] 3.48E-04 Sims et al. 2017 Sims et al. 2017 yes PLCG2 Missense Pro522Leu PLCG2 no clear no
+rs75511804 17 5138304 T/C T 0.118 Risk 0.91[0.89-0.93] 6.46E-14 Present work Jansen al. 2019 No SCIMP no SCIMP no possible no
+rs2732703 17 46290850 T/G G 0.236 Protective 0.95[0.92-0.97] 1.08E-04 Present work Jun et al. 2015 No MAPT/KANSL1 no KANSL1, MAPT no likely
+APOE e4 negative
+and APOE e4 positive
+specific risks
+rs4311 17 61560763 T/C C 0.469 Risk 1.06[1.04-1.08] 5.51E-10 Marioni et al. 2018 Alvarez et al. 1999 No ACE Intornic ALU insertion ACE no clear
+Intracerebral
+hemorrage
+occurrence in CAA
+rs72835061 17 4805437 A/C A 0.085 Risk 1.09[1.06-1.11] 1.51E-10 Present work Present work yes CHRNE/C17orf107 no CHRNE no possible no
+rs616338 17 47297297 T/C T 0.008 Risk 1.27[1.14-1.43] 3.22E-05 Sims et al. 2017 Sims et al. 2017 no ABI3 Missense Ser209Phe ABI3 no clear no
+rs3752231 19 1043638 T/C T 0.260 Risk 0.92[0.90-0.94] 8.42E-16 Marioni et al. 2018 Hollinworth et al. 2011 No ABCA7 Intronic VNTR ABCA7 rare variants (incomplete
+penetrance), LOF variants likely no
+rs429358 19 45411941 T/C C 0.168 Risk 3.00[2.93-3.07] 0.00E+00 Strittmatter et al. 1993 Strittmatter et al. 1993 No APOE4 Arg112-Arg158
+diplotype APOE no clear
+c-reactive protein,
+lipids, platelecrit,
+blood proteins
+levels…
+rs7412 19 45412079 T/C T 0.049 Protective 1.58[1.52-1.65] 3.20E-123 Chartier-Harlin et al.
+1994
+Chartier-Harlin et al.
+1994 No APOE2 Cys112-Cys158
+diplotype APOE no clear
+Lipid levels, Blood
+pressure, Blood
+protein levels…
+rs12459419 19 51728477 T/C T 0.290 Protective 1.06[1.04-1.08] 3.11E-08 Malik et el. 2013 Bertram et al. 2008 No CD33 Exon 2 splicing
+modulator CD33 no clear Blood protein levels,
+platelecrit
+rs6024870 20 54997568 A/G A 0.103 Protective 0.90[0.87-0.93] 2.16E-11 Present work Lambert et al. 2013 No CASS4 no CASS4/CSFT1 no unclear no
+rs2154481 21 27473875 T/C C 0.483 Protective 0.95[0.94-0.96] 1.39E-11 Present work Goate et al. 1991 Yes APP no APP EOAD full penetrance mutations likely no

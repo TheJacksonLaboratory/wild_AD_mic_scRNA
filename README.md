@@ -1,8 +1,11 @@
-# wild_AD_mic_scRNA
-scRNA-seq on microglia from wild-derived Alzheimer's mouse model
+# scRNA-seq on microglia from wild-derived Alzheimer's mouse model
 
-## Abstract
-Genetic and genome-wide association studies suggest a central role for microglia in Alzheimer’s disease (AD) pathology. However, single-cell RNA-sequencing (scRNA-seq) of microglia in mice, a key preclinical model organism, has shown mixed results regarding translatability to human studies. To address this, scRNA-seq of microglia from C57BL/6J (B6) and wild-derived strains WSB/EiJ, CAST/EiJ and PWK/PhJ carrying APP/PS1 was performed and demonstrated that genetic diversity significantly altered features and dynamics of microglia in baseline neuroimmune functions and in response to amyloidosis. There was significant variation in abundance of microglial subpopulations, including numbers of previously identified disease-associated and interferon-responding microglia across the strains. Further, for each subpopulation, significant gene expression differences were observed between strains, and relative to B6 that included nineteen genes previously associated with human AD including Apoe, Trem2, Bin1 and Sorl1. This resource will be critical in the development of appropriately targeted therapeutics for AD and a range of other neurological diseases.
+## Publication, data and shiny app
+This github site store all the scripts to reproduce the analysis in for our paper published in Cell Reports: https://doi.org/10.1016/j.celrep.2021.108739
+
+All the raw data, processed data and analysis data (the Seurat object) has been submitted to AD Knowledge Portal (http://adknowledgeportal.synapse.org). All the contents can be found at: https://doi.org/10.7303/syn23763409
+
+We have built a shiny app for visualizing gene expression of microglia clusters. https://wild_microglia_scrna-seq.jax.org/
 
 
 ## Brief Methods
@@ -10,10 +13,3 @@ Genetic and genome-wide association studies suggest a central role for microglia
 Microglia were mechanically isolated from 8-9 months-old female mice from our wild-derived AD mouse panel [C57BL/6J (B6), PWK/PhJ, WSB/EiJ and CAST/EiJ strains, each carrying APP/PS1] using magnetic activated cell sorting with cd11b micro-beads and were subjected to scRNA-seq (JAX Single Cell Biology Laboratory). The whole process was performed on 4 °C. 
 
 Data were processed using a customized pipeline (scBASE) allowing strain-specific genome alignment followed by downstream analyses using Seurat and edgeR packages. 
-
-Please check more details in a previous version of manuscript.(The manuscript has been accepted on Cell Reports on 12/02/20, a final version will be updated soon)
-https://www.biorxiv.org/content/10.1101/2020.06.02.130237v1
-
-
-
-

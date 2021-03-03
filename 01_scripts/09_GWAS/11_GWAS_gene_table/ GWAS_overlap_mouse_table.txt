@@ -1,0 +1,55 @@
+SYMBOL	Source	symbol_mouse	Overlap_with_mouse_scRNAseq
+ABCA7	Jansen et al. & de Rojas et al.	Abca7	Yes
+ABI3	Jansen et al. & de Rojas et al.	Abi3	Yes
+AC074212.3	Jansen et al.	Ac074212.3	No
+ACE	de Rojas et al.	Ace	No
+ADAM10	Jansen et al. & de Rojas et al.	Adam10	Yes
+ADAMTS4	Jansen et al.	Adamts4	Yes
+ALPK2	Jansen et al.	Alpk2	Yes
+APH1B	Jansen et al. & de Rojas et al.	Aph1b	Yes
+APOE	Jansen et al.	Apoe	Yes
+APOE2	de Rojas et al.	Apoe2	No
+APOE4	de Rojas et al.	Apoe4	No
+APP	de Rojas et al.	App	Yes
+BIN1	Jansen et al. & de Rojas et al.	Bin1	Yes
+BZRAP1-AS1	Jansen et al.	Bzrap1-As1	No
+CASS4	Jansen et al. & de Rojas et al.	Cass4	Yes
+CD2AP	Jansen et al. & de Rojas et al.	Cd2ap	Yes
+CD33	Jansen et al. & de Rojas et al.	Cd33	Yes
+CHRNE	de Rojas et al.	Chrne	No
+CLNK	Jansen et al.	Clnk	No
+CLU	Jansen et al. & de Rojas et al.	Clu	Yes
+CNTNAP2	Jansen et al.	Cntnap2	Yes
+CR1	Jansen et al. & de Rojas et al.	Cr1	No
+CSFT1	de Rojas et al.	Csft1	No
+ECHDC3	Jansen et al. & de Rojas et al.	Echdc3	Yes
+EPHA1	Jansen et al. & de Rojas et al.	Epha1	Yes
+FERMT2	de Rojas et al.	Fermt2	No
+HESX1	Jansen et al.	Hesx1	No
+HLA-DRB1	Jansen et al. & de Rojas et al.	Hla-Drb1	No
+HS3ST1	Jansen et al. & de Rojas et al.	Hs3st1	No
+IL34	de Rojas et al.	Il34	No
+INPP5D	Jansen et al. & de Rojas et al.	Inpp5d	Yes
+IQCK	de Rojas et al.	Iqck	Yes
+KANSL1	de Rojas et al.	Kansl1	Yes
+KAT8	Jansen et al.	Kat8	Yes
+KNOP1	de Rojas et al.	Knop1	Yes
+MAPT	de Rojas et al.	Mapt	Yes
+MS4A4A	de Rojas et al.	Ms4a4a	No
+MS4A6A	Jansen et al.	Ms4a6a	No
+NDUFAF7	de Rojas et al.	Ndufaf7	Yes
+PICALM	Jansen et al. & de Rojas et al.	Picalm	Yes
+PILRA	de Rojas et al.	Pilra	Yes
+PLCG2	de Rojas et al.	Plcg2	Yes
+PRKD3	de Rojas et al.	Prkd3	Yes
+PTK2B	Jansen et al. & de Rojas et al.	Ptk2b	Yes
+RIN3	de Rojas et al.	Rin3	Yes
+SCIMP	Jansen et al. & de Rojas et al.	Scimp	Yes
+SHARPIN	de Rojas et al.	Sharpin	Yes
+SLC24A4	Jansen et al. & de Rojas et al.	Slc24a4	No
+SORL1	Jansen et al. & de Rojas et al.	Sorl1	Yes
+SPI1	de Rojas et al.	Spi1	Yes
+SUZ12P1	Jansen et al.	Suz12p1	No
+TREM2	Jansen et al. & de Rojas et al.	Trem2	Yes
+TREML2	de Rojas et al.	Treml2	Yes
+ZCWPW1	Jansen et al.	Zcwpw1	Yes
